@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+
+  <!-- Take command line arguments -->
+  <arg name="argv" default="" />
+
+  <!-- ROSBAG Recording -->
+  <arg name="record" default="false" />
+
+  <!-- 1. To debug just add parameter debut:=true in command window -->
+  <arg name="debug" default="false"/>
+
+  <!-- 2. Joint Command Timeout Modification. In Baxter it is 0.2 secs -->
+  <arg name="timeOut" default="1.5" />
+
+  <!-- 3. launch-prefix runs gdb in xterm without running it automatically -->
+  <arg     if="$(arg debug)" name="gdb_arg" value="xterm -e gdb --args" />
+  <arg unless="$(arg debug)" name="gdb_arg" value="" />
+
+  <!-- 4. Precision: how accurate must pos_ctrl be. Filter: smoothing btw goal/currpos-->
+  <arg name="precision" default="0.01744"/>  
+  <arg name="filter"    default="0.5"/>  
+
+  <!-- 5. Tolerance and Filter Parameter for the Force Controller-->
+  <arg name="error_threshold" default="1.0"/>  
+
+  <!-- 6. Load the URDF and other kinematics andd controller parameters into the ROS Parameter Server -->
+  <param name="urdf" command="cat '$(find baxter_description)/urdf/baxter.urdf'"    />
+  <param name="root_name"          value="base"                   />
+  <param name="tip_name"           value="left_gripper"          />
+  <param name="side" type="string" value="left"                  />
+  <param name="precision"          value="$(arg precision)"       />    
+  <param name="filter"             value="$(arg filter)"          />    
+  <param name="error_threshold"    value="$(arg error_threshold)" />      
+
+  <!-- 7. Change the timeout of JointCommand -->
+  <node name="JointCommand_timeoutDelay" pkg="rostopic" type="rostopic" args="pub -r 10 /robot/limb/left/joint_command_timeout std_msgs/Float64 $(arg timeOut)">
+  </node>
+
+  <!-- 8. Run control basis controller with force and moment basis controllers -->
+  <node name="left_force_controller" pkg="force_controller" type="controller" output="screen" respawn="false" args="$(arg argv)" launch-prefix="$(arg gdb_arg)" >
+    <param name="urdf" command="cat '$(find baxter_description)/urdf/baxter.urdf'"    />
+    <param name="root_name"          value="base"                   />
+    <param name="tip_name"           value="left_gripper"          />
+    <param name="side" type="string" value="left"                  />
+    <param name="precision"          value="$(arg precision)"       />    
+    <param name="filter"             value="$(arg filter)"          />    
+    <param name="error_threshold"    value="$(arg error_threshold)" />      
+  </node>
+
+  <!-- 9. Rosbag Record the Wrench Data-->
+  <group if="$(arg record)">
+   <node name="rosbag_wrench" pkg="rosbag" type="record"
+         args="record -o /home/vmrguser/ros/indigo/baxter_ws/src/birl_baxter/recorded_motions/motion_files/assembly/bag_analysis/ /robot/limb/left/endpoint_state">
+   </node>
+ </group>
+   
+</launch>

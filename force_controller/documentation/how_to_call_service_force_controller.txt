@@ -1,0 +1,13 @@
+Call to service
+-------------------
+
+LEFT
+-------------------
+rosservice call /left/force_controller "{num_ctrls: 1, type: [force], desired: [{x: 0.0, y: 0.0, z: 1.0}], gains: []}"
+
+
+RIGHT
+-------------------
+rosservice call /right/force_controller "{num_ctrls: 1, type: [force], desired: [{x: 1.0, y: 0.0, z: 0.0}], gains: []}"
+
+

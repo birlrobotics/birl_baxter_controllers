@@ -1,0 +1,5 @@
+<launch>
+	<node pkg="move_baxter" name="initial_pose" type="initial" respawn="false" output="screen">
+		<param name="precision" value="0.0001" />
+	</node>
+</launch>

@@ -1,0 +1,6 @@
+To launch the controller: $roslaunch position_controller position_controller.launch
+In this launch file you can change the precision (error tolerance) of the joint angles.
+
+In the file: "Publish_topic_position_control.txt " , you can find an example of how to command a desired set of joint angles for Baxter arms (the ones calculated by the force controller).
+
+You can easily merge the position controller with the force controller if you want a close loop with the force error (instead of the position error).

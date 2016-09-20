@@ -1,0 +1,10 @@
+To move the arm to the desired joint angles (the order of the joints can be changed, just be sure to follow the same order in the name vector and in the position vector) type the following command to a shell before running the position controller node:
+-----------------------------
+
+== LEFT ARM ==
+-------------------
+rostopic pub -1 /move_Baxter sensor_msgs/JointState '{ header: {seq: 0, frame_id: left}, name: [left_e0, left_e1, left_s0, left_s1, left_w0, left_w1, left_w2], position: [0, 0, 0, 0, 0, 0]}'
+
+== RIGHT ARM==
+---------------------
+rostopic pub -1 /move_Baxter sensor_msgs/JointState '{ header: {seq: 0, frame_id: right}, name: [right_e0, right_e1, right_s0, right_s1, right_w0, right_w1, right_w2], position: [0, 0, 0, 0, 0, 0]}'

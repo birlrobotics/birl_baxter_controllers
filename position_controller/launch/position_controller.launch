@@ -1,0 +1,9 @@
+<launch>
+  <!-- This argument defines how precisely baxter should reach its desired joint goal -->
+  <arg name="precision" default="0.0001"/>
+
+  <!-- The prevision value can be loosened if the position controller cannot reach the goal or takes too long -->
+	<node pkg="position_controller" name="pos_controller" type="position" respawn="false" output="screen">
+		<param name="precision" value="0.01" />
+	</node>
+</launch>

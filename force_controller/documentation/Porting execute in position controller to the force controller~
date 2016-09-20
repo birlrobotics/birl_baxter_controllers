@@ -1,0 +1,46 @@
+To port the execute function in the position_controller to the force_controller, we first changed its name to position_controller. 
+
+We also had to move the method isMoveFinish along with associated public/private members. 
+
+One key difference is the use of variable joints_. In the force controller we created this variable as a vector of vectors; while in the position controller it was just a vector. 
+
+The force controller needs a history of joint angle positions for filtering. Below is an analysis of where joints_ as a vector is used in the force_controller.
+
+forceController use of joints_[]
+
+1. controller::fill(Eigen::VectorXd dq)
+update.position.push_back(dq(i)+joints_[0][i]);
+- seems like it's taking the first vector "0"
+
+2. getTorqueOffset()
+- Left arm: 
+...joints_[0][i]*joints_[0][i] + ... joints_[0][i] 
+
+- Right arm: 
+...joints_[0][i]*joints_[0][i] + ... joints_[0][i]
+
+3. getWrenchEndpoint(std::string type)
+kine_model_->getJacobian(joints_[0], joints_names_, jacobian);
+
+ROS_ERROR_STREAM("Failed to compute Jacobian Pseudo Inverse " << fe << ", tor " << realTorque << ", jac" << jacobian << ", j " << joints_[0][0])
+
+**************************************************************
+4. updateJoints(const baxter_core_msgs::SEAJointStateConstPtr& state)
+**************************************************************
+joints_.push_back(jt);
+joints_.push_back(jt);
+
+*It is here where we are keeping a short history buffer of joints. We do this to compute filtered version of the signal as in the following 2 lines:
+
+jtf[i] = 0.0784*j_t_1_[i] + 1.5622*joints_[0][i] - 0.6413*joints_[1][i];
+
+joints_[1][i] = joints_[0][i];
+
+5. JacobianProduct(std::string type, Eigen::VectorXd& update)
+getJacobian(joints_[0], joints_names_, jacobian);
+
+6. ComputePrimitiveController(
+			std::vector<Eigen::VectorXd>& update, 
+			std::string type, 
+			geometry_msgs::Vector3 desired, 			std::vector<double>& e)
+

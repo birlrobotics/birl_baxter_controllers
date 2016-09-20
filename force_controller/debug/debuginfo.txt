@@ -1,0 +1,21 @@
+rostopic echo -n 1 /robot/limb/right/gravity_compensation_torques/actual_effort
+[-1.028, -9.904, 9.32, -9.532, -0.016, 0.116, -0.016]
+
+
+rostopic echo -n 1 /robot/limb/right/endpoint_state/wrench
+force: 
+  x: 2.51333236694
+  y: -2.23051095009
+  z: -0.304150491953
+torque: 
+  x: 1.79410517216
+  y: 1.17200660706
+  z: 0.743353843689
+
+
+rostopic echo -n 1 /robot/joint_states/position
+[0.0, 0.03183010131225586, -1.1297768489868165, 1.9289808385620117, -0.07823302009277344, -0.9564370201538086, 0.6496408629272461, 0.9921020734313966, -0.485121423614502, 1.1309273345764161, 1.9305148193481447, 0.07823302009277344, -0.9579710009399415, -0.6469563965515137, 0.9955535302001953, 0.48473792841796876, -12.565987104803467]
+
+rostopic echo -n 1 /robot/joint_stas/name
+['head_nod', 'head_pan', 'left_e0', 'left_e1', 'left_s0', 'left_s1', 'left_w0', 'left_w1', 'left_w2', 'right_e0', 'right_e1', 'right_s0', 'right_s1', 'right_w0', 'right_w1', 'right_w2', 'torso_t0']
+
