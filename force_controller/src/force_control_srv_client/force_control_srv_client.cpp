@@ -1,7 +1,7 @@
 #include "ros/ros.h"
 
 // ROS Service
-#include <force_controller/controller.h>
+#include <force_controller/force_controller_service.h>
 
 // ROS Msg Type
 #include <geometry_msgs/Vector3.h>

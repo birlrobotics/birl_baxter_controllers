@@ -61,11 +61,11 @@ add_library(mykinematics src/kinematics.cpp)
 target_link_libraries(mykinematics ${catkin_LIBRARIES})
 
 # 1a. Force Controller Service Server Executable (including a service server)
-add_executable       (controller src/controller.cpp)
-target_link_libraries(controller ${catkin_LIBRARIES})
-add_dependencies     (controller %{PROJECT_NAME}_gencfg) # Builds dyn_rec headers before use.
+add_executable       (force_cont_service src/force_controller_service.cpp)
+target_link_libraries(force_cont_service ${catkin_LIBRARIES})
+add_dependencies     (force_cont_service %{PROJECT_NAME}_gencfg) # Builds dyn_rec headers before use.
 add_dependencies     (mykinematics ${catkin_EXPORTED_TARGETS})
-target_link_libraries(controller ${catkin_LIBRARIES} mykinematics) # links kin lib.
+target_link_libraries(force_cont_service ${catkin_LIBRARIES} mykinematics) # links kin lib.
 
 # 1b. Force Controller Service Client Executable
 add_executable       (force_control_srv_client  src/force_control_srv_client/force_control_srv_client.cpp)
@@ -73,11 +73,11 @@ target_link_libraries(force_control_srv_client ${catkin_LIBRARIES})
 add_dependencies     (force_control_srv_client %{PROJECT_NAME}_generate_messages_cpp)
 
 # 2a. Force Controller Publisher Subscriber Executable (including a service server)
-add_executable       (force_contrl_pubsub src/force_contr_pubsub.cpp)
-target_link_libraries(force_contrl_pubsub ${catkin_LIBRARIES})
+add_executable       (force_cont_topic src/force_controller_topic.cpp)
+target_link_libraries(force_cont_topic ${catkin_LIBRARIES})
 add_dependencies     (mykinematics ${catkin_EXPORTED_TARGETS})
-add_dependencies     (force_contrl_pubsub %{PROJECT_NAME}_gencfg)    # Builds dyn_rec headers before use.
-target_link_libraries(force_contrl_pubsub ${catkin_LIBRARIES} mykinematics) # lins kin lib
+add_dependencies     (force_cont_topic %{PROJECT_NAME}_gencfg)    # Builds dyn_rec headers before use.
+target_link_libraries(force_cont_topic ${catkin_LIBRARIES} mykinematics) # lins kin lib
 
 # 2b. Force Controller Set Point Publisher
 add_executable       (setPoint_pub src/setPoint/setPoint_publisher.cpp)

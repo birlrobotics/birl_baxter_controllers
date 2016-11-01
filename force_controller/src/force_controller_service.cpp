@@ -1,4 +1,4 @@
-#include <force_controller/controller.h>
+#include <force_controller/force_controller_service.h>
 namespace force_controller
 {
   //***********************************************************************************************************************************************
@@ -28,8 +28,10 @@ namespace force_controller
   force_error_constantsFlag = true;
 
   }
-
+  
+  //-----------------------------------------------------------------------------------
   // Controller Class Constructor
+  //-----------------------------------------------------------------------------------
   controller::controller(ros::NodeHandle node): node_handle_(node)
 	  {
       // Initialize counters and Flags
@@ -94,7 +96,7 @@ namespace force_controller
       exe_ = false;	jo_ready_ = false;
 
       /***************************************************** Publisher, subscriber and Service Advertisement *******************************************************************/
-      // Set all the flag values ros ros communication objects
+      // Set all the flag values ros ros communication objects according to parameter designs in ../include/force_controller/controller.h
       rosCommunicationCtr=0;
       joints_sub_flag         =JOINTS_SUB_F; 
       wrench_sub_flag         =WRENCH_SUB_F;

@@ -2,7 +2,7 @@
 #include <ros/ros.h>
 
 // ROS Msg Type for setPoint
-#include <force_controller/force_contr_pubsub.h>
+#include <force_controller/force_controller_topic.h>
 
 // ROS Msg Type
 #include <geometry_msgs/Vector3.h>
@@ -13,7 +13,7 @@
 #include <string>
 #define RATE 500 // Parameter to set publication rate
 //---------------------------------------------------------------------------------------------------
-// Can get setPiont from launch file, command line, or another publisher--this yet to be implemented.
+// Can get setPoint from launch file, command line, or another publisher--this yet to be implemented.
 // setPoint looks like:
 //---------------------------------------------------------------------------------------------------
 // #Number of Controllers
@@ -49,12 +49,12 @@ int main(int argc, char **argv)
   ros::NodeHandle n;
 
   // A. Handle command line arguments
-  int numCtrls=1;
-  int mode1=0,  mode2=0;
-  double x1=0,  x2=0;
+  int numCtrls=1;					// How many controllers
+  int mode1=0,  mode2=0;	// mode1: what type of controller will be dominant? "force" or "moment"
+  double x1=0,  x2=0;			// Des values for XYZ for dominant and subordinate controlllers
   double y1=0,  y2=0; 
   double z1=0,  z2=0; 
-  double gx1=0, gx2=0;
+  double gx1=0, gx2=0;		// DesGains for XYZ for dominant and subordiante controllers
   double gy1=0, gy2=0; 
   double gz1=0, gz2=0;
 

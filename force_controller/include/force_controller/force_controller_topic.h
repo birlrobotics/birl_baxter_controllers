@@ -6,6 +6,7 @@
 
 // ROS Message Types
 #include <geometry_msgs/Wrench.h>
+#include <geometry_msgs/WrenchStamped.h>
 #include <geometry_msgs/Vector3.h>
 #include <sensor_msgs/JointState.h>
 #include <force_controller/setPoint.h> // setPoint desired type
@@ -51,6 +52,9 @@ using std::string;
 //----------------------------------------------------------------------------------------
 #define JOINTS_PUB_F 1 // Publishes to /joint_command to move the arm to a reference set point.
 #define FILT_W_PUB_F 1 // Publishes a filtered wrench value 
+//----------------------------------------------------------------------------------------
+/*** FT Sensors **/
+#define FT_WACOH_F 1   // Only 1 ft sensor can be true. If none are true, then use baxter's internal torque/end-effector measurements.
 //----------------------------------------------------------------------------------------
 #define CTRBAS_SRV_F 0 // Publishes the control basis service server. When a client call is sent, force_control begins. 
 #define DYN_RECONF_F 0 // Dynamic reconfigure flag
@@ -137,7 +141,9 @@ namespace force_controller
 	  sensor_msgs::JointState fill(Eigen::VectorXd dq);
 
     /*** ROS Updates for subscribers  and Parameters ***/
-    void getWrenchEndpoint(const baxter_core_msgs::EndpointStateConstPtr& state);    // Eigen::Vector3d getWrenchEndpoint(....
+    void getWrenchEndpoint_wacoh(geometry_msgs::WrenchStamped state);         // Used with Wacoh FT Sensor
+    void getWrenchEndpoint(const baxter_core_msgs::EndpointStateConstPtr& state);    // Used with Baxter's built-in torque data
+    //-----------------------------------------------------------------------------
 	  void getBaxterJointState(const baxter_core_msgs::SEAJointStateConstPtr& state);  // Used to get joint positions, velocities, and efforts from Baxter. 
     void getSetPoint(const force_controller::setPointConstPtr& state);               // Used to get the desired set point for the control basis
 
@@ -260,6 +266,9 @@ namespace force_controller
     int joints_sub_flag;
     int wrench_sub_flag;
     int setPoint_sub_flag;
+
+    // FT Sensor Flags
+    int ft_wacoh_flag; 
 
     int joint_cmd_pub_flag;
     int filtered_wrench_pub_flag;

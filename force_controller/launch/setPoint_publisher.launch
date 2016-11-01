@@ -1,22 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <launch>
 
-  <!-- 1. To debug just add parameter debut:=true in command window -->
+  <!-- 1. To debug just add parameter debug:=true in command window -->
   <arg name="debug" default="false"/>
   <arg name="side"  default="right"/>
+  <arg name="male_camera_mold_mass" default="0.8342"/>
 
-  <!-- 1. Load side we want to publish on -->
+  <!-- 2. Load side we want to publish on -->
  <param name="side" type="string" value="$(arg side)" />
 
   <!-- 3. launch-prefix runs gdb in xterm without running it automatically -->
   <arg     if="$(arg debug)" name="gdb_arg" value="xterm -e gdb --args" />
   <arg unless="$(arg debug)" name="gdb_arg" value="" />
 
-  <!-- 2. Run the setpoint_publisher node -->
-  <!-- In isolation:"2 0 1 0 -1 0.2 0.2 0.2 1 0 5 0 0.015 0.015 0.05"-->
-  <!-- F alone:"1 0 | 3 0 -7.5 | 0.2 -0.0001 0.1" -->
-  <!-- M/F:"2 1 | 0 -10 0 | 0.015 0.015 0.0015 | 0 | 3 0 -7.5 | 0.2 0.0001 0.1-->
-  <node name="$(arg side)_set_point_publisher" pkg="force_controller" type="setPoint_pub" output="screen" respawn="true" args="1 0 0 0 0 0.2 -0.0001 0.1" launch-prefix="$(arg gdb_arg)" >  
+  <!--4. Gripper Customization: Set the mass for the camera mold-->
+
+  <!--5. Start the Force Controller (currently wacoh) -->
+  <node name="ft_wacoh" pkg="ft_wacoh" type="ft_wacoh_pub" output="screen" respawn="true">
+  </node>
+
+  <!-- 6. Run the setpoint_publisher node -->
+  <!-- Arg order can be as follows (read forceController_ReadMe.txt for more -->
+  <!-- numCtrls | DomMode | DomDesXYZ(x3) | DomDesGains(x3) | SubMode | SubDesXYZ(x3) | SubDesGains(x3) -->
+  <!-- All of them are optional -->
+
+  <!-- In isolation:"2|0|1 0 -1.0|0.2 0.2 0.2|1|0 5 0|0.015 0.015 0.05"      -->
+  <!-- F alone:     "1|0|3 0 -7.5|0.2 -0.0001 0.1"                           -->
+  <!-- Moom/For:    "2|1|0 -10 0|0.015 0.015 0.0015|0|3 0 -7.5|0.2 0.0001 0.1-->
+  <node name="$(arg side)_set_point_publisher" pkg="force_controller" type="setPoint_pub" output="screen" respawn="true" args="1 0 0 0 0 0.015 0.015 0.0015" launch-prefix="$(arg gdb_arg)" >  
   </node>
 
 </launch>

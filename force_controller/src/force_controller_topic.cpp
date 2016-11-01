@@ -1,4 +1,6 @@
-#include <force_controller/controller.h>
+#include <force_controller/force_controller_topic.h>
+
+
 namespace force_controller
 {
   //***********************************************************************************************************************************************
@@ -99,6 +101,7 @@ namespace force_controller
       rosCommunicationCtr=0;
       joints_sub_flag         =JOINTS_SUB_F; 
       wrench_sub_flag         =WRENCH_SUB_F;
+      ft_wacoh_flag           =FT_WACOH_F;
       setPoint_sub_flag       =SETPNT_SUB_F;
       joint_cmd_pub_flag      =JOINTS_PUB_F;
       filtered_wrench_pub_flag=FILT_W_PUB_F;
@@ -116,7 +119,10 @@ namespace force_controller
       // 2. Subscription object to get the wrench endpoint state. 
       if(wrench_sub_flag)
         {
-          wrench_sub_ = root_handle_.subscribe<baxter_core_msgs::EndpointState>("/robot/limb/" + side_ + "/endpoint_state", 1, &controller::getWrenchEndpoint, this);
+          if(ft_wacoh_flag)
+            wrench_sub_ = root_handle_.subscribe<geometry_msgs::WrenchStamped>("/wrench/biased", 1, &controller::getWrenchEndpoint_wacoh, this); //wrench/biased is a topic with offset to zero ft sensor.
+          else
+            wrench_sub_ = root_handle_.subscribe<baxter_core_msgs::EndpointState>("/robot/limb/" + side_ + "/endpoint_state", 1, &controller::getWrenchEndpoint, this);
           rosCommunicationCtr++;
         }
 
@@ -138,7 +144,10 @@ namespace force_controller
       // 5. Publication object to publish filtered wrench information.
       if(filtered_wrench_pub_flag)
         {
-          filtered_wrench_pub_ = node_handle_.advertise<baxter_core_msgs::EndpointState>("/robot/limb/" + side_ + "/filtered_wrench", 20, false);
+          if(ft_wacoh_flag)
+            filtered_wrench_pub_ = node_handle_.advertise<geometry_msgs::WrenchStamped>("/robot/limb/" + side_ + "/filtered_wrench", 20, false);
+          else
+            filtered_wrench_pub_ = node_handle_.advertise<baxter_core_msgs::EndpointState>("/robot/limb/" + side_ + "/filtered_wrench", 20, false);
           rosCommunicationCtr++;
         }
 
@@ -303,12 +312,87 @@ namespace force_controller
 
     return wrench; 
   }
+  //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  // Callback to get wrench endpoint using the Wacoh FT sensor
+  // Input: geometry_msgs/WrenchStamped which contains a wrench with force/torque.
+  // Also available is the choice to filter the data using a 2nd order low-pass filter.
+  //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  void controller::getWrenchEndpoint_wacoh(geometry_msgs::WrenchStamped state)
+  {  
+    // Get the force and torque from the callback argument state
+    cur_data_ << state.wrench.force.x, state.wrench.force.y, state.wrench.force.z,
+                 state.wrench.torque.x,state.wrench.torque.y,state.wrench.torque.z;
+    
+
+    /***************************************************************************** Filtering ************************************************************************************/
+    // Create a vector or 6D Eigen vectors
+    Eigen::VectorXd temp = Eigen::VectorXd::Zero(6);    
+
+    if(wrenchFilteringFlag)
+      {
+        // If this is the first loop we need to insert two rows with equal values as the current iteration for both wrenchVec and wrenchVecF
+        if(initialFiltering)
+          {
+            for(int i=0; i<2; i++)
+              {
+                // Input wrench at the end of the vector
+                wrenchVec.push_back(cur_data_);               
+
+                // Filtered wrench at the end of the vector
+                wrenchVecF.push_back(cur_data_);
+              }
+            // Change Flag
+            initialFiltering=false;
+          }
+
+        // Copy new data to wrenchVec at the end of the vector
+        wrenchVec.push_back(cur_data_);
+        
+        // Assuming a vector of size(3) Time entries are:0,1,2 Element [2] is the current one (sitting at the back), element t-1 is [1], sitting in the middle, and element t-2 is[0]. 
+        // The indeces are opposite to what you think it should be. 
+        for(int i=0; i<6; i++)
+          temp(i) = 0.018299*wrenchVec[2](i) + 0.036598*wrenchVec[1](i) + 0.018299*wrenchVec[0](i) + 1.58255*wrenchVecF[1](i) - 0.65574*wrenchVecF[0](i);
+
+        // Add new filtered result
+        wrenchVecF.push_back(temp);
+
+        // Pop last value from these two structures to keep the size of the vector to 3 throughout
+        wrenchVec.pop_front();
+        wrenchVecF.pop_front();
+      }
+
+    // Set filterd value to private member
+    for(int i=0; i<6; i++)
+      cur_data_f_(i) = wrenchVecF[0](i);
+
+    geometry_msgs::WrenchStamped fw;
+    // Time Stamp
+    fw.header.stamp = ros::Time::now();
+
+    // Wrench
+    fw.wrench.force.x  = cur_data_f_(0); 
+    fw.wrench.force.y  = cur_data_f_(1); 
+    fw.wrench.force.z  = cur_data_f_(2); 
+    fw.wrench.torque.x = cur_data_f_(3); 
+    fw.wrench.torque.y = cur_data_f_(4); 
+    fw.wrench.torque.z = cur_data_f_(5); 
+
+    // Republish. Leading to system crash..
+    if(filtered_wrench_pub_flag)
+      {
+        filtered_wrench_pub_.publish(fw);
+        // ROS_INFO_STREAM("Publishing the filtered wrench: " << fw.wrench << std::endl);
+      }
+
+    //}
+  }
 
   //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  // Callback to get wrench endpoint using Baxter's data. 
   // 2 possible ways of getting the wrench endpoint:
   // Input: a baxter_core_msgs/EndPointState which contains a wrench with force/torque.
   // 1. Subscribe to the endpoint_state topic and get the wrench. 
-  // 2. Get joint torques (and the gravitational torque) and then compute the endpoint wrench. Can us an offset (computed a priori) that tries to cancel the noise in Baxter's arms.  // Places result in private member cur_data_
+  // 2. Get joint torques (and the gravitational torque) and then compute the endpoint wrench. Can use an offset (computed a priori) that tries to cancel the noise in Baxter's arms.  // Places result in private member cur_data_
   // Also available is the choice to filter the data using a 2nd order low-pass filter.
   //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   void controller::getWrenchEndpoint(const baxter_core_msgs::EndpointStateConstPtr& state)
