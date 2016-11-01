@@ -30,4 +30,7 @@
   <node name="$(arg side)_set_point_publisher" pkg="force_controller" type="setPoint_pub" output="screen" respawn="true" args="1 0 0 0 0 0.015 0.015 0.0015" launch-prefix="$(arg gdb_arg)" >  
   </node>
 
+  <!-- 7. Run an rqt_plot viewer on the FT data -->
+  <node name="wrench_plot" pkg="rqt_plot" type="rqt_plot" args="/wrench/biased/wrench/force /wrench/biased/wrench/torque" />
+
 </launch>
