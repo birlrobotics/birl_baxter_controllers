@@ -887,7 +887,7 @@ namespace force_controller
   {
     ROS_INFO("\n----------------------------Entering force controller----------------------------");
 
-    // // Local variables
+    // Local variables
     bool fin= true;
     bool ok = false;
     std::vector<double> error, js;

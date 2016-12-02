@@ -8,7 +8,7 @@
 #include <geometry_msgs/Wrench.h>
 #include <geometry_msgs/Vector3.h>
 #include <sensor_msgs/JointState.h>
-#include <force_controller/setPoint.h> // setPoint desired type
+#include <force_controller/setPoint.h> // defines set-point
 
 // Dynamic Reconfigure
 #include <dynamic_reconfigure/server.h>

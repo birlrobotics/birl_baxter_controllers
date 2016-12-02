@@ -46,15 +46,17 @@ using std::string;
 // Programs design parameters
 //----------------------------------------------------------------------------------------
 /*** Flags for ROS Communication Objects ***/
-#define JOINTS_SUB_F 1 // Subscribes to /gravity_compensation_torques to get joints, velocities, torques, and gravity compensations
-#define WRENCH_SUB_F 1 // Subscribes to /endpoint_state to get the endpoint wrench
-#define SETPNT_SUB_F 1 // Subscribes to /side/force_control/setPoint
+#define JOINTS_SUB_F 1 	       // Subscribes to /gravity_compensation_torques to get joints, velocities, torques, and gravity compensations
+#define WRENCH_SUB_F 1         // Subscribes to /endpoint_state to get the endpoint wrench
+#define SETPNT_SUB_F 1         // Subscribes to /side/force_control/setPoint
 //----------------------------------------------------------------------------------------
-#define JOINTS_PUB_F 1 // Publishes to /joint_command to move the arm to a reference set point.
-#define FILT_W_PUB_F 1 // Publishes a filtered wrench value 
+#define JOINTS_PUB_F 1         // Publishes to /joint_command to move the arm to a reference set point.
+#define FILT_W_PUB_F 1         // Publishes a filtered wrench value
+#define WRENCH_ERORR_PUB_F 1   // Publishes the wrench error 
+#define GRAV_PUB_F   1         // Publishes the gravitational offset at the end-effector 
 //----------------------------------------------------------------------------------------
 /*** FT Sensors **/
-#define FT_WACOH_F 1   // Only 1 ft sensor can be true. If none are true, then use baxter's internal torque/end-effector measurements.
+#define FT_WACOH_F 1           // Only 1 ft sensor can be true. If none are true, then use baxter's internal torque/end-effector measurements.
 //----------------------------------------------------------------------------------------
 #define CTRBAS_SRV_F 0 // Publishes the control basis service server. When a client call is sent, force_control begins. 
 #define DYN_RECONF_F 0 // Dynamic reconfigure flag
@@ -80,8 +82,8 @@ namespace force_controller
   static const int LEFT = 0, RIGHT = 1;
 
   // Proportional Gain Parameters for joint controller Const: (0.0050)
-  double k_fp0=0.2, k_fp1=0.0001, k_fp2=0.1, 
-    k_mp0=0.015, k_mp1=0.0015, k_mp2=0.015; // Also sed with dynamc_reconfigure
+  double k_fp0=0.2,  k_fp1=0.0001,  k_fp2=0.1, 
+         k_mp0=0.015, k_mp1=0.0015, k_mp2=0.015; // Also sed with dynamc_reconfigure
   
 
   // Derivative Gain Parameters for joint controller Const: Const: 0.0025
@@ -165,7 +167,7 @@ namespace force_controller
 
 
 
-    /*** Inline Methods ***/
+    /**************************************************** Inline Methods **********************************************/
 	  inline void openFiles()
 	  {
       std::ostringstream num2;
@@ -256,6 +258,9 @@ namespace force_controller
 
     ros::Publisher     joint_cmd_pub_;                   // Publication to command joints 
     ros::Publisher     filtered_wrench_pub_;             // Publish a filtered wrench number
+    ros::Publisher     wrench_error_pub_;
+
+    ros::Publisher     endEff_gravOffset_pub_;   				 // Publish the gravitational compensation offset at the end-effector
 
 	  ros::ServiceServer ctrl_server_;                     // Used to advertise the control basis service. 
 
@@ -271,7 +276,9 @@ namespace force_controller
     int ft_wacoh_flag; 
 
     int joint_cmd_pub_flag;
+    int wrench_error_pub_flag;
     int filtered_wrench_pub_flag;
+    int gravitational_offset_pub_flag;
 
     int ctrl_server_flag;
     // int dynamic_reconfigure_flag;                       // Currently dynamic_reconfigure code sits outside the class in main, so this will be publc.
@@ -287,19 +294,23 @@ namespace force_controller
 	  Eigen::Vector3d gFp_, gMp_; // Proportional gains
     Eigen::Vector3d gFv_, gMv_; // Derivative gains
 	  Eigen::VectorXd error_, error_t_1, derror_;
+
     double error_norm_;
-    std::vector<Eigen::VectorXd> setPoint_; // Keep [0] for dominant and [1] for subordiante
-    force_controller::setPoint sP_;         // Contains des values, gains for up to 2 cntrls.
-    Eigen::VectorXd cur_data_, cur_data_f_;
-    std::deque<Eigen::VectorXd> wrenchVec, wrenchVecF; 
-	  std::vector<double> j_t_1_, jv_t_1_, tm_t_1_, tg_t_1_; // Joints, velocity, torques, gravitational torques. 
-	  std::vector<std::vector<double> > joints_, velocity_, torque_, tg_;
+
+    Eigen::VectorXd                   cur_data_, cur_data_f_;
+    force_controller::setPoint        sP_;         // Contains des values, gains for up to 2 cntrls.
+    std::vector<Eigen::VectorXd>      setPoint_; // Keep [0] for dominant and [1] for subordiante
+
+    std::deque<Eigen::VectorXd>       wrenchVec, wrenchVecF; 
+	  std::vector<double>               j_t_1_, jv_t_1_, tm_t_1_, tg_t_1_, tgBase_; // Joints, velocity, torques, gravitational compensation torques. 
+	  std::vector<std::vector<double> > joints_, velocity_, torque_, tg_;  
 
     // Position Controller Vars (used with controller::position_controller
-    sensor_msgs::JointState update_angles_;
-	  baxter_core_msgs::JointCommand qgoal_; // Smooth filtered goal with alpha
-	  std::vector<double> goal_, qd_, qe_; // Comes from position_controller/include/initialPose.h. 
-                                         // joints_ was removed from here and instead we used the native std::vector<std::vector<double> > joints_ always using index[0] instead.
+    sensor_msgs::JointState        update_angles_;
+	  baxter_core_msgs::JointCommand qgoal_;          // Smooth filtered goal with alpha
+	  std::vector<double>            goal_, qd_, qe_; // Comes from position_controller/include/initialPose.h. 
+                                                    // joints_ was removed from here and instead we used the native 
+                                                    // std::vector<std::vector<double> > joints_ always using index[0] instead.
 
     // Position Controller Tolerance Parameters
 	  double tolerance_, max_error_, alpha_;    
@@ -317,8 +328,11 @@ namespace force_controller
     // Inner Control Loop Flags
     int jntPos_Torque_InnerCtrl_Flag_;
     // Wrench Filtering Flags
-    int wrenchFilteringFlag;  // in getWrenchEndpoint()
+    int wrenchFilteringFlag;       // in getWrenchEndpoint*
+    int gravitationalOffsetFlag;   
+    int initialGravCompFlag;        
     int initialFiltering;
+    
 
     // File Streams
 	  std::ofstream save_;

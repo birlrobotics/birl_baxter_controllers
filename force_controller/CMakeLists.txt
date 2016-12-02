@@ -47,7 +47,7 @@ catkin_package(
 	baxter_core_msgs
 	sensor_msgs
 	geometry_msgs
-  dynamic_reconfigure
+	dynamic_reconfigure
 	message_runtime
 )
 
@@ -60,29 +60,33 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 add_library(mykinematics src/kinematics.cpp)
 target_link_libraries(mykinematics ${catkin_LIBRARIES})
 
-# 1a. Force Controller Service Server Executable (including a service server)
+# 1a. Force Controller Service Server 
 add_executable       (force_cont_service src/force_controller_service.cpp)
 target_link_libraries(force_cont_service ${catkin_LIBRARIES})
 add_dependencies     (force_cont_service %{PROJECT_NAME}_gencfg) # Builds dyn_rec headers before use.
+add_dependencies     (force_cont_service ${catkin_EXPORTED_TARGETS}) # setPoint.msg??
 add_dependencies     (mykinematics ${catkin_EXPORTED_TARGETS})
 target_link_libraries(force_cont_service ${catkin_LIBRARIES} mykinematics) # links kin lib.
 
-# 1b. Force Controller Service Client Executable
+# 1b. Force Controller Service Client 
 add_executable       (force_control_srv_client  src/force_control_srv_client/force_control_srv_client.cpp)
 target_link_libraries(force_control_srv_client ${catkin_LIBRARIES})
 add_dependencies     (force_control_srv_client %{PROJECT_NAME}_generate_messages_cpp)
+add_dependencies     (force_control_srv_client ${catkin_EXPORTED_TARGETS}) # setPoint.msg??
 
-# 2a. Force Controller Publisher Subscriber Executable (including a service server)
+# 2a. Force Controller Set Point Subscriber
 add_executable       (force_cont_topic src/force_controller_topic.cpp)
 target_link_libraries(force_cont_topic ${catkin_LIBRARIES})
 add_dependencies     (mykinematics ${catkin_EXPORTED_TARGETS})
 add_dependencies     (force_cont_topic %{PROJECT_NAME}_gencfg)    # Builds dyn_rec headers before use.
+add_dependencies     (force_cont_topic ${catkin_EXPORTED_TARGETS}) # setPoint.msg??
 target_link_libraries(force_cont_topic ${catkin_LIBRARIES} mykinematics) # lins kin lib
 
 # 2b. Force Controller Set Point Publisher
 add_executable       (setPoint_pub src/setPoint/setPoint_publisher.cpp)
 target_link_libraries(setPoint_pub ${catkin_LIBRARIES})
 add_dependencies     (setPoint_pub %{PROJECT_NAME}_generate_message_cpp)
+add_dependencies     (setPoint_pub ${catkin_EXPORTED_TARGETS}) # setPoint.msg??
 
 # Install
 install(DIRECTORY include/${PROJECT_NAME}/
