@@ -206,7 +206,6 @@ namespace force_controller
       gravitationalOffsetFlag=0; // Enter loop considering gravity compensation
       initialGravCompFlag    =0;
 
-
       ROS_INFO("Force controller on baxter's %s arm is ready", side_.c_str());
 	  }
   //***********************************************************************************************************************************************
@@ -475,7 +474,7 @@ namespace force_controller
           }
 
       }
-    
+
     // With async spinner calls force_controller
     // force_controller();
   }
@@ -886,7 +885,7 @@ namespace force_controller
         for(unsigned int i=0; i<3; i++)
           ke(i) = gFp_(i)*error_(i) + gFv_(i)*derror_(i);
 
-        // Publish the error
+        // Publish the force error (have not done so for moment error)
         if(wrench_error_pub_flag)
           {
             geometry_msgs::Vector3 forceError;
@@ -1106,6 +1105,7 @@ namespace force_controller
 
           // Wait for the first joint angles readings. Otherwise cannot compute torques.
           while(!ok)
+<<<<<<< HEAD
             {
               if(jo_ready_)
                 ok = true;
@@ -1162,34 +1162,74 @@ namespace force_controller
           // C. Move to desired joint angle position through a positon or torque control loop
           if(jntPos_Torque_InnerCtrl_Flag_)   
             {
+=======
+            {
+              if(jo_ready_)
+                ok = true;
+            }
+
+          // B. Call controllers. 
+          // As long as our norm is greater than the force error threshold, continue the computation.
+          string type="";
+          //    do {
+          // B1. Call primitive controllers. Store the delta joint angle update in dqs. 
+          for(unsigned int i=0; i<sP_.num_ctrls; i++)
+            {
+              ROS_INFO("Calling primitive controller %d", i);
+
+              // Extract the force/moment setpoint
+              if(i==0) 
+                {
+                  type=sP_.domType;
+                  setPoint_[i] << sP_.domDes[0].x, sP_.domDes[0].y, sP_.domDes[0].z;
+                }
+              else
+                {
+                  type=sP_.subType;
+                  setPoint_[i] << sP_.subDes[0].x, sP_.subDes[0].y, sP_.subDes[0].z;
+                }
+
+
+              // Takes vector of eigen's: setPoint_ as an input
+              // Outputs a delta joint angle in vector of eigens dqs[i] and the error. 
+              // [0]=dominant controller, [1] = subordinate controller
+              if(!computePrimitiveController(dqs[i], type, setPoint_[i], error))
+                {
+                  ROS_ERROR("Could not compute angle update for type: %s", type.c_str());
+                  return false;
+                }
+            }
+
+          // B2. 2 Controllers: call compound controllers
+          if(sP_.num_ctrls > 1)
+            {
+              // Take 2 angle updates in dqs. Project the subordinate update to the dominant ctrl's nullspace. 
+              // Places new angle update+current angles in the sensor_msgs::JointState update_angles_, ready to pass to position controller
+              if(!NullSpaceProjection(dqs, update_angles_))
+                {
+                  ROS_ERROR("Could not get null space projection");
+                  return false;
+                }
+            }
+    
+          // For only one (dominant controller) Add delta joint angles to current joint angles through fill, store in update_angles.position
+          else
+            update_angles_ = fill(dqs[0]);         
+
+          // C. Move to desired joint angle position through a positon or torque control loop
+          if(jntPos_Torque_InnerCtrl_Flag_)           
+            {
+              // Temporary modification to test how baxter performs with direct joint updates
               qgoal_.mode = qgoal_.POSITION_MODE;
               qgoal_.names = joints_names_;
               qgoal_.command.resize( 7 );
               for(int i=0;i<7;i++)
                 qgoal_.command[i]=update_angles_.position[i];
               joint_cmd_pub_.publish(qgoal_);        // NOV 8, TESTING IF WE DIRECTLY PUBLISH HOW ROBOT WILL RESPOND  
+
             //fin=position_controller(update_angles_,to_); // Position Controller
             }        
 
-          else 
-            torque_controller(dqs[0],to_);              // Torque Controller        
-
-          // If position controller did not finish properly, exit, else continue the while loop.
-          // if(!fin)
-          //   break;
-
-          // // Set frequency to 
-          // loopRate.sleep();
-          // }  while(fin && error_norm_ > force_error_threshold_); // do while
-          ROS_INFO_STREAM("isMoveFinish returns: " << fin );
-
-          return true;	
-        }
-      else
-        return false;
-  }
-
-  //********************************************************************************************
   // torque_controller(...)
   // Compute error in wrench point, and then use the Jt and a gain to compute torque updates.
   // Sent to /joint_command
@@ -1500,5 +1540,6 @@ int main(int argc, char** argv)
       myControl.force_controller();
       rate.sleep();
     }
+
   return 0;
 }  
