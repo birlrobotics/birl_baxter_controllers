@@ -27,7 +27,7 @@
   <!-- In isolation:"2|0|1 0 -1.0|0.2 0.2 0.2|1|0 5 0|0.015 0.015 0.05"      -->
   <!-- F alone:     "1|0|3 0 -7.5|0.2 -0.0001 0.1"                           -->
   <!-- Moom/For:    "2|1|0 -10 0|0.015 0.015 0.0015|0|3 0 -7.5|0.2 0.0001 0.1-->
-  <node name="$(arg side)_set_point_publisher" pkg="force_controller" type="setPoint_pub" output="screen" respawn="true" args="1 0 0 0 0 0.015 0.015 0.0015" launch-prefix="$(arg gdb_arg)" >  
+  <node name="$(arg side)_set_point_publisher" pkg="force_controller" type="setPoint_pub" output="screen" respawn="true" args="1 0 0 0 0 0.000 0.000 0.000" launch-prefix="$(arg gdb_arg)" >  
   </node>
 
   <!-- 7. Run an rqt_plot viewer on the FT data -->

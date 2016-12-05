@@ -1162,12 +1162,13 @@ namespace force_controller
           // C. Move to desired joint angle position through a positon or torque control loop
           if(jntPos_Torque_InnerCtrl_Flag_)   
             {
+              //----------------------------------- TESTING DIRECT PUBLICATION -------------------------------------
               qgoal_.mode = qgoal_.POSITION_MODE;
               qgoal_.names = joints_names_;
               qgoal_.command.resize( 7 );
               for(int i=0;i<7;i++)
                 qgoal_.command[i]=update_angles_.position[i];
-              joint_cmd_pub_.publish(qgoal_);        // NOV 8, TESTING IF WE DIRECTLY PUBLISH HOW ROBOT WILL RESPOND  
+              joint_cmd_pub_.publish(qgoal_);        // NOV 8, TESTING IF WE DIRECTLY PUBLISH HOW ROBOT WILL RESPOND               //----------------------------------- TESTING DIRECT PUBLICATION ------------------------------------- 
             //fin=position_controller(update_angles_,to_); // Position Controller
             }        
 

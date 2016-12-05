@@ -887,7 +887,7 @@ namespace force_controller
   {
     ROS_INFO("\n----------------------------Entering force controller----------------------------");
 
-    // // Local variables
+    // Local variables
     bool fin= true;
     bool ok = false;
     std::vector<double> error, js;
@@ -1274,30 +1274,32 @@ int main(int argc, char** argv)
   /*** Different Communication Modes ***/
   while(ros::ok())
     {
-      ros::spinOnce();
+
+      // 1. AsyncSpinner
+      ros::AsyncSpinner spinner(myControl.get_rosCommunicationCtr());
+      spinner.start();
+      //ros::waitForShutdown(); 
+
+      // 2. MultiThreadedSpinner
+      // ros::MultiThreadedSpinner spinner(myControl.get_rosCommunicationCtr()); // One spinner per ROS communication object: here we use it for 
+      //   1. Publish joint commands
+      //   2. Subsribe to current joint Angles
+      //   3. Advertice a service server
+      //   4. Subscribe to endpoint wrench (optional set in getWrenchEndpoint)
+      //   5. Dynamic Reconfigure (off)
+      //   6. published filtered wrench
+      //spinner.spin();
+      //ros::waitForShutdown(); 
+
+      // 3. Blocking Spin
+      // ros::spin();
+      // ros::waitForShutdown();
+
+      // 4. Non Blocking spin
+      // ros::spinOnce();
       myControl.force_controller();
       rate.sleep();
     }
-  
-  // 1. AsyncSpinner
-  //ros::AsyncSpinner spinner(myControl.get_rosCommunicationCtr());
-  //spinner.start();
-  //ros::waitForShutdown(); 
-
-  // 2. MultiThreadedSpinner
-  // ros::MultiThreadedSpinner spinner(myControl.get_rosCommunicationCtr()); // One spinner per ROS communication object: here we use it for 
-                                                          // 1. Publish joint commands
-                                                          // 2. Subsribe to current joint Angles
-                                                          // 3. Advertice a service server
-                                                          // 4. Subscribe to endpoint wrench (optional set in getWrenchEndpoint)
-                                                          // 5. Dynamic Reconfigure (off)
-                                                          // 6. published filtered wrench
-  //spinner.spin();
-  //ros::waitForShutdown(); 
-
-  // // 3. Blocking Spin
-  // ros::spin();
-  // ros::waitForShutdown();
 
   return 0;
 }  
