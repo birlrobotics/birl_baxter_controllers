@@ -28,7 +28,7 @@ namespace force_controller
   force_error_constantsFlag = true;
 
   }
-  
+
   //-----------------------------------------------------------------------------------
   // Controller Class Constructor
   //-----------------------------------------------------------------------------------
@@ -47,6 +47,7 @@ namespace force_controller
 
       /*** Get Parameter Values ***/
       // Get Parameter Values from the parameter server. Set in the roslaunch file or by hand.
+      // node_handle_ access node namespace. root_handle_ access global namespace.
 
       // Position Controller precision and filtering
       node_handle_.param<double>("joint_precision", tolerance_, oneDeg);
@@ -56,7 +57,7 @@ namespace force_controller
       node_handle_.param<double>("error_threshold",force_error_threshold_,force_error_threshold);
 
       // Strings
-      root_handle_.param<std::string>("side", side_, "right");
+      node_handle_.param<std::string>("side", side_, "right");
       node_handle_.param<std::string>("tip_name", tip_name_, "right_gripper");
 
       // Hack: currently we cannot guarantee the order in which spinner threads are called.
@@ -117,7 +118,10 @@ namespace force_controller
       // 2. Subscription object to get the wrench endpoint state. 
       if(wrench_sub_flag)
         {
-          wrench_sub_ = root_handle_.subscribe<baxter_core_msgs::EndpointState>("/robot/limb/" + side_ + "/endpoint_state", 1, &controller::getWrenchEndpoint, this);
+          if(ft_wacoh_flag)
+            wrench_sub_ = root_handle_.subscribe<geometry_msgs::WrenchStamped>("/wrench/biased", 1, &controller::getWrenchEndpoint_wacoh, this); //wrench/biased is a topic with offset to zero ft sensor.
+          else
+          	wrench_sub_ = root_handle_.subscribe<baxter_core_msgs::EndpointState>("/robot/limb/" + side_ + "/endpoint_state", 1, &controller::getWrenchEndpoint, this);
           rosCommunicationCtr++;
         }
 
@@ -139,7 +143,10 @@ namespace force_controller
       // 5. Publication object to publish filtered wrench information.
       if(filtered_wrench_pub_flag)
         {
-          filtered_wrench_pub_ = node_handle_.advertise<baxter_core_msgs::EndpointState>("/robot/limb/" + side_ + "/filtered_wrench", 20, false);
+          if(ft_wacoh_flag)
+            filtered_wrench_pub_ = node_handle_.advertise<geometry_msgs::WrenchStamped>("/robot/limb/" + side_ + "/filtered_wrench", 20, false);
+          else
+	          filtered_wrench_pub_ = node_handle_.advertise<baxter_core_msgs::EndpointState>("/robot/limb/" + side_ + "/filtered_wrench", 20, false);
           rosCommunicationCtr++;
         }
 
@@ -176,9 +183,9 @@ namespace force_controller
       // Inner Control Loop
       jntPos_Torque_InnerCtrl_Flag_=JNTPOS_TORQUE_CONTROLLER;
 
-        // Wrench Filtering
-      wrenchFilteringFlag=1;
-      initialFiltering   =1;
+		// Wrench Filtering
+      initialFiltering       =1; // Filter wrench dat
+      wrenchFilteringFlag    =1;
 
       ROS_INFO("Force controller on baxter's %s arm is ready", side_.c_str());
 	  }
@@ -313,10 +320,151 @@ namespace force_controller
   }
 
   //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  // Callback to get wrench endpoint using the Wacoh FT sensor
+  // Input: geometry_msgs/WrenchStamped which contains a wrench with force/torque.
+  // Also available is the choice to add the gravitational force computed at the end_effector to the end_effector.
+  // Also available is the choice to filter the data using a 2nd order low-pass filter.
+  //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  void controller::getWrenchEndpoint_wacoh(geometry_msgs::WrenchStamped state)
+  {  
+    // Get the force and torque from the callback argument state
+    cur_data_ << state.wrench.force.x, state.wrench.force.y, state.wrench.force.z,
+                 state.wrench.torque.x,state.wrench.torque.y,state.wrench.torque.z;
+
+    /***************************************************************************** Filtering ************************************************************************************/
+    // Create a vector or 6D Eigen vectors
+    Eigen::VectorXd temp              = Eigen::VectorXd::Zero(6);  
+    Eigen::VectorXd gravOffset        = Eigen::VectorXd::Zero(7);
+    Eigen::VectorXd endEff_gravOffset = Eigen::VectorXd::Zero(6); // Create a vectors for the gravitational offset
+    Eigen::MatrixXd jacobian, JJt;  
+    geometry_msgs::Wrench eeGravOff;
+
+    /******************************** Gravitational Offset *******************************/
+    if(jo_ready_) // jo_ready_ indicates gravity offset is ready
+      {
+        if(gravitationalOffsetFlag)
+          {
+            // Set a base set of values corresponding to the starting positions for gravity compensation
+            if(initialGravCompFlag) 
+              {
+                for(int i=0; i<7; i++)
+                  tgBase_[i]=tg_[0][i];
+                initialGravCompFlag=false;
+              }
+            else 
+              {
+                // GravityOffset = gravity compensation - base gravity compenssation
+                for(int i=0; i<7; i++)
+                  gravOffset(i) = tg_[0][i] - tgBase_[i];
+
+                ROS_INFO_STREAM("gravOffset: " << gravOffset);        
+
+                // Get Jacobian (input: joint angles and joint names, output is matrix). 
+                kine_model_->getJacobian(joints_[0], joints_names_, jacobian);
+
+                // Preparing the Pseudo Inverse: 
+                JJt = jacobian * jacobian.transpose();
+
+                // Use the Jacobian Pseudo Inverse (Moore-Penrose Inverse) to compute the wrench.
+                // Equation: (J'J)^-1*J' or J'*(JJ')^-1
+                // Note that in our case T=J'e, so we need to use J' instead of just J in the above equation.
+                // Also, the Pseudo Inverse tends to have stability problems around singularities. A large change in joing angles will be produced, even for a small motion.  
+                // Singularities represent directions of motion that the manipulator cannot achieve. Particulary in a straight arm configuration, or in the wrist when W1 aligns both W0 and W2. We can check for near singularities if the determinant is close to zero. At singular positions the Pseudo Inverse the matrix is well behaved.
+                endEff_gravOffset = (JJt.inverse()*jacobian) * gravOffset;
+                ROS_INFO_STREAM("End Effector Grav Joint Offset: " << endEff_gravOffset);
+
+                // Copy data to wrench type
+                eeGravOff.force.x  =endEff_gravOffset(0);
+                eeGravOff.force.y  =endEff_gravOffset(1);
+                eeGravOff.force.z  =endEff_gravOffset(2);
+                eeGravOff.torque.x =endEff_gravOffset(3);
+                eeGravOff.torque.y =endEff_gravOffset(4);
+                eeGravOff.torque.z =endEff_gravOffset(5);
+
+                endEff_gravOffset_pub_.publish(eeGravOff);
+
+                // Use Eigen's least square approach: 
+                // wrench = Jacobian.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(endEff_gravOffset);
+                for(unsigned int i=0; i<6; i++)
+                  {
+                    if(isnan(cur_data_(i)))
+                      {
+                        ROS_ERROR_STREAM("Failed to compute Jacobian Pseudo Inverse " << cur_data_(i) << ", tor " << endEff_gravOffset << ", jac" << jacobian << ", j " << joints_[0][0]);
+                        // return cur_data_;
+                      }
+                  }
+              } // End if-else for two methods.
+          }     // End initialGravCompFlag
+
+        /******************************** Filtering *******************************/
+        if(wrenchFilteringFlag)
+          {
+            // If this is the first loop we need to insert two rows with equal values as the current iteration for both wrenchVec and wrenchVecF
+            if(initialFiltering)
+              {
+                for(int i=0; i<2; i++)
+                  {
+                    // Input wrench at the end of the vector
+                    wrenchVec.push_back(cur_data_);               
+
+                    // Filtered wrench at the end of the vector
+                    wrenchVecF.push_back(cur_data_);
+                  }
+                // Change Flag
+                initialFiltering=false;
+              }
+
+            // Copy new data to wrenchVec at the end of the vector
+            wrenchVec.push_back(cur_data_);
+        
+            // Assuming a vector of size(3) Time entries are:0,1,2 Element [2] is the current one (sitting at the back), element t-1 is [1], sitting in the middle, and element t-2 is[0]. 
+            // The indeces are opposite to what you think it should be. 
+            for(int i=0; i<6; i++)
+              temp(i) = 0.018299*wrenchVec[2](i) + 0.036598*wrenchVec[1](i) + 0.018299*wrenchVec[0](i) + 1.58255*wrenchVecF[1](i) - 0.65574*wrenchVecF[0](i);
+
+            // Add new filtered result
+            wrenchVecF.push_back(temp);
+
+            // Pop last value from these two structures to keep the size of the vector to 3 throughout
+            wrenchVec.pop_front();
+            wrenchVecF.pop_front();
+          }
+
+        // Set filterd value to private member
+        for(int i=0; i<6; i++)
+          cur_data_f_(i) = wrenchVecF[0](i);
+
+        geometry_msgs::WrenchStamped fw;
+        // Time Stamp
+        fw.header.stamp = ros::Time::now();
+
+        // Wrench
+        fw.wrench.force.x  = cur_data_f_(0); 
+        fw.wrench.force.y  = cur_data_f_(1); 
+        fw.wrench.force.z  = cur_data_f_(2); 
+        fw.wrench.torque.x = cur_data_f_(3); 
+        fw.wrench.torque.y = cur_data_f_(4); 
+        fw.wrench.torque.z = cur_data_f_(5); 
+
+        // Republish. Leading to system crash..
+        if(filtered_wrench_pub_flag)
+          {
+            filtered_wrench_pub_.publish(fw);
+            // ROS_INFO_STREAM("Publishing the filtered wrench: " << fw.wrench << std::endl);
+          }
+
+      }
+    
+    // With async spinner calls force_controller
+    // force_controller();
+  }
+
+  //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  // Callback to get wrench endpoint using Baxter's data. 
   // 2 possible ways of getting the wrench endpoint:
   // Input: a baxter_core_msgs/EndPointState which contains a wrench with force/torque.
   // 1. Subscribe to the endpoint_state topic and get the wrench. 
-  // 2. Get joint torques (and the gravitational torque) and then compute the endpoint wrench. Can us an offset (computed a priori) that tries to cancel the noise in Baxter's arms.  // Places result in private member cur_data_
+  // 2. Get joint torques (and the gravitational torque) and then compute the endpoint wrench. Can use an offset (computed a priori) that tries to cancel the noise in Baxter's arms.  // Places result in private member cur_data_
   // Also available is the choice to filter the data using a 2nd order low-pass filter.
   //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   void controller::getWrenchEndpoint(const baxter_core_msgs::EndpointStateConstPtr& state)
@@ -660,26 +808,30 @@ namespace force_controller
   //****************************************************************************************************  
   void controller::updateGains(geometry_msgs::Vector3 gain, std::string type)
   {
-
-
     if(type == "force")
-      gFp_ = Eigen::Vector3d(gain.x, gain.y, gain.z);
+      {
+        gFp_ = Eigen::Vector3d(gain.x, gain.y, gain.z);
+        if(gFp_.sum()==0) // If we cancel the gains, due the same for the deriv gains
+          {
+            for(int i=0;i<3;i++)
+              gFv_(i)=0.0;
+          }
+      }
+
     else if(type == "moment")
       gMp_ = Eigen::Vector3d(gain.x, gain.y, gain.z);
     else
       ROS_WARN("Could not recognize type of controller, using default gain value");
-
   }
 
-  void controller::updateGains() {
-
+  void controller::updateGains() 
+ {
     // Update with rqt_reconfigure updated parameters
     gFp_ << k_fp0, k_fp1, k_fp2;
     gMp_ << k_mp0, k_mp1, k_mp2;
 
     // change the flag
     force_error_constantsFlag = false;
-
   }
 
 /*********************************************** JacobianProduct ***********************************************************
@@ -885,111 +1037,116 @@ namespace force_controller
   // ---------------------------------------------------------------------------
   bool controller::force_controller()
   {
-    ROS_INFO("\n----------------------------Entering force controller----------------------------");
-
-    // Local variables
-    bool fin= true;
-    bool ok = false;
-    std::vector<double> error, js;
-    std::vector<Eigen::VectorXd> dqs;
-
-    // Set initial variables like time t0_=0.0
-    // side_ = qd.header.frame_id;
-    initialize();
-
-    // Initialize vectors
-    js.resize(7);                    // Will keep current 7 joint angles here
-    dqs.resize(2);                   // To delta angle updates: dom and sub ctrlrs
-    dqs[0]=Eigen::VectorXd::Zero(7); // TODO might want to change dqs to simply be an eigen vector. change the prototype of primitiveController and NullSpaceProjection. Is there a need for the vector and the history?
-    error.clear();
-
-    // openFiles to write down data
-    openFiles();
- 
-    // A1. Check for gain updates:
-    // From command line or roslaunch
-    if(sP_.domGains.size()!=0)
-        updateGains(sP_.domGains[0],sP_.domType);
-    if(sP_.subGains.size()!=0)
-      updateGains(sP_.subGains[0], sP_.subType);
-
-    // Update from Dynamic Reconfigure GUI
-    if(force_error_constantsFlag)
-      updateGains();
-
-    // Wait for the first joint angles readings. Otherwise cannot compute torques.
-    while(!ok)
-      {
-        if(jo_ready_)
-          ok = true;
-      }
-
-    // B. Call controllers. 
-    // As long as our norm is greater than the force error threshold, continue the computation.
-    string type="";
-    //    do {
-      // B1. Call primitive controllers. Store the delta joint angle update in dqs. 
-      for(unsigned int i=0; i<sP_.num_ctrls; i++)
+      if(jo_ready_)
         {
-          ROS_INFO("Calling primitive controller %d", i);
+			ROS_INFO("\n----------------------------Entering force controller----------------------------");
 
-          // Extract the force/moment setpoint
-          if(i==0) 
-            {
-              type=sP_.domType;
-              setPoint_[i] << sP_.domDes[0].x, sP_.domDes[0].y, sP_.domDes[0].z;
-            }
-          else
-            {
-              type=sP_.subType;
-              setPoint_[i] << sP_.subDes[0].x, sP_.subDes[0].y, sP_.subDes[0].z;
-            }
+			// Local variables
+			bool fin= true;
+			bool ok = false;
+			std::vector<double> error, js;
+			std::vector<Eigen::VectorXd> dqs;
+
+			// Set initial variables like time t0_=0.0
+			// side_ = qd.header.frame_id;
+			initialize();
+
+			// Initialize vectors
+			js.resize(7);                    // Will keep current 7 joint angles here
+			dqs.resize(2);                   // To delta angle updates: dom and sub ctrlrs
+			dqs[0]=Eigen::VectorXd::Zero(7); // TODO might want to change dqs to simply be an eigen vector. change the prototype of primitiveController and NullSpaceProjection. Is there a need for the vector and the history?
+			error.clear();
+
+			// openFiles to write down data
+			openFiles();
+		 
+			// A1. Check for gain updates:
+			// From command line or roslaunch
+			if(sP_.domGains.size()!=0)
+				updateGains(sP_.domGains[0],sP_.domType);
+			if(sP_.subGains.size()!=0)
+			  updateGains(sP_.subGains[0], sP_.subType);
+
+			// Update from Dynamic Reconfigure GUI
+			if(force_error_constantsFlag)
+			  updateGains();
+
+			// Wait for the first joint angles readings. Otherwise cannot compute torques.
+			while(!ok)
+			  {
+				if(jo_ready_)
+				  ok = true;
+			  }
+
+			// B. Call controllers. 
+			// As long as our norm is greater than the force error threshold, continue the computation.
+			string type="";
+			//    do {
+			  // B1. Call primitive controllers. Store the delta joint angle update in dqs. 
+			  for(unsigned int i=0; i<sP_.num_ctrls; i++)
+				{
+				  ROS_INFO("Calling primitive controller %d", i);
+
+				  // Extract the force/moment setpoint
+				  if(i==0) 
+				    {
+				      type=sP_.domType;
+				      setPoint_[i] << sP_.domDes[0].x, sP_.domDes[0].y, sP_.domDes[0].z;
+				    }
+				  else
+				    {
+				      type=sP_.subType;
+				      setPoint_[i] << sP_.subDes[0].x, sP_.subDes[0].y, sP_.subDes[0].z;
+				    }
 
 
-          // Takes vector of eigen's: setPoint_ as an input
-          // Outputs a delta joint angle in vector of eigens dqs[i] and the error. 
-          // [0]=dominant controller, [1] = subordinate controller
-          if(!computePrimitiveController(dqs[i], type, setPoint_[i], error))
-            {
-              ROS_ERROR("Could not compute angle update for type: %s", type.c_str());
-              return false;
-            }
-        }
+				  // Takes vector of eigen's: setPoint_ as an input
+				  // Outputs a delta joint angle in vector of eigens dqs[i] and the error. 
+				  // [0]=dominant controller, [1] = subordinate controller
+				  if(!computePrimitiveController(dqs[i], type, setPoint_[i], error))
+				    {
+				      ROS_ERROR("Could not compute angle update for type: %s", type.c_str());
+				      return false;
+				    }
+				}
 
-      // B2. 2 Controllers: call compound controllers
-      if(sP_.num_ctrls > 1)
-        {
-          // Take 2 angle updates in dqs. Project the subordinate update to the dominant ctrl's nullspace. 
-          // Places new angle update+current angles in the sensor_msgs::JointState update_angles_, ready to pass to position controller
-          if(!NullSpaceProjection(dqs, update_angles_))
-            {
-              ROS_ERROR("Could not get null space projection");
-              return false;
-            }
-        }
-    
-      // For only one (dominant controller) Add delta joint angles to current joint angles through fill, store in update_angles.position
+			  // B2. 2 Controllers: call compound controllers
+			  if(sP_.num_ctrls > 1)
+				{
+				  // Take 2 angle updates in dqs. Project the subordinate update to the dominant ctrl's nullspace. 
+				  // Places new angle update+current angles in the sensor_msgs::JointState update_angles_, ready to pass to position controller
+				  if(!NullSpaceProjection(dqs, update_angles_))
+				    {
+				      ROS_ERROR("Could not get null space projection");
+				      return false;
+				    }
+				}
+		
+			  // For only one (dominant controller) Add delta joint angles to current joint angles through fill, store in update_angles.position
+			  else
+				update_angles_ = fill(dqs[0]);         
+
+			  // C. Move to desired joint angle position through a positon or torque control loop
+			  if(jntPos_Torque_InnerCtrl_Flag_)           
+				fin=position_controller(update_angles_,to_); // Position Controller
+				
+			  else 
+				torque_controller(dqs[0],to_);              // Torque Controller        
+
+			  // If position controller did not finish properly, exit, else continue the while loop.
+			  // if(!fin)
+			  //   break;
+
+			  // // Set frequency to 
+			  // loopRate.sleep();
+			  // }  while(fin && error_norm_ > force_error_threshold_); // do while
+			ROS_INFO_STREAM("isMoveFinish returns: " << fin );
+
+			return true;	
+		 }
       else
-        update_angles_ = fill(dqs[0]);         
-
-      // C. Move to desired joint angle position through a positon or torque control loop
-      if(jntPos_Torque_InnerCtrl_Flag_)           
-        fin=position_controller(update_angles_,to_); // Position Controller
-        
-      else 
-        torque_controller(dqs[0],to_);              // Torque Controller        
-
-      // If position controller did not finish properly, exit, else continue the while loop.
-      // if(!fin)
-      //   break;
-
-      // // Set frequency to 
-      // loopRate.sleep();
-      // }  while(fin && error_norm_ > force_error_threshold_); // do while
-    ROS_INFO_STREAM("isMoveFinish returns: " << fin );
-
-    return true;	
-  }
+        return false;
+	  }
 
   //********************************************************************************************
   // torque_controller(...)
@@ -998,35 +1155,38 @@ namespace force_controller
   //********************************************************************************************
   void controller::torque_controller(Eigen::VectorXd delT, ros::Time t0)
     {
-      // Copy qd into goal_ and clear member qd_ 
-      goal_.clear();	qd_.clear();                     // goal_ is of type vector<doubles> 
-      for(unsigned int i=0; i<7; i++)
-        goal_.push_back(delT[i]);
-      qd_ = goal_;
+      if(jo_ready_)
+        {
+		  // Copy qd into goal_ and clear member qd_ 
+		  goal_.clear();	qd_.clear();                     // goal_ is of type vector<doubles> 
+		  for(unsigned int i=0; i<7; i++)
+			goal_.push_back(delT[i]);
+		  qd_ = goal_;
 
-      qgoal_.mode = qgoal_.TORQUE_MODE;               // qgoal is of type baxter_core_msgs/JointCommand. Consists of int mode, float[] name, float[] command.
-      qgoal_.names = joints_names_;                   
-      qgoal_.command.resize( goal_.size() );
+		  qgoal_.mode = qgoal_.TORQUE_MODE;               // qgoal is of type baxter_core_msgs/JointCommand. Consists of int mode, float[] name, float[] command.
+		  qgoal_.names = joints_names_;                   
+		  qgoal_.command.resize( goal_.size() );
 
-      // Compute commanded torque: actual_torque - gravity_model_effort + delta torque.
-      // Notice that the first two are vectors, so we take the top vector elements.
-      for(unsigned int i=0; i< goal_.size(); i++)
-        qgoal_.command[i] = torque_[0][i]-tg_[0][i]+delT[i]; // Actual torque - gravity compensation (will be added) + delta 
-        // qgoal_.command[i] = torque_[0][i]+delT[i]; // Trying with gravity compensation suppresed resulted in a fast and dangerous motion dropping the arm.
+		  // Compute commanded torque: actual_torque - gravity_model_effort + delta torque.
+		  // Notice that the first two are vectors, so we take the top vector elements.
+		  for(unsigned int i=0; i< goal_.size(); i++)
+			qgoal_.command[i] = torque_[0][i]-tg_[0][i]+delT[i]; // Actual torque - gravity compensation (will be added) + delta 
+			// qgoal_.command[i] = torque_[0][i]+delT[i]; // Trying with gravity compensation suppresed resulted in a fast and dangerous motion dropping the arm.
 
-      // Get current time 
-      ros::Time tnow = ros::Time::now();
-  
-      // Publish desired filtered joint angles (arm moves)
-      ROS_INFO("Commanded torque is:\
-              \n------------------------------\n<%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f> at time: %f\n------------------------------\n",
-               qgoal_.command[0],qgoal_.command[1],qgoal_.command[2],
-               qgoal_.command[3],qgoal_.command[4],qgoal_.command[5],
-               qgoal_.command[6],(tnow-t0).toSec());
+		  // Get current time 
+		  ros::Time tnow = ros::Time::now();
+	  
+		  // Publish desired filtered joint angles (arm moves)
+		  ROS_INFO("Commanded torque is:\
+			      \n------------------------------\n<%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f> at time: %f\n------------------------------\n",
+			       qgoal_.command[0],qgoal_.command[1],qgoal_.command[2],
+			       qgoal_.command[3],qgoal_.command[4],qgoal_.command[5],
+			       qgoal_.command[6],(tnow-t0).toSec());
 
-      // Publish to the topic /robot/limb/right/joint_command. Baxter will move upon receiving this command. 
-      joint_cmd_pub_.publish(qgoal_);
-      ROS_INFO("\n--------------------------------------------- Finished Moving the %s arm ---------------------------------------------\n\n", side_.c_str());      
+		  // Publish to the topic /robot/limb/right/joint_command. Baxter will move upon receiving this command. 
+		  joint_cmd_pub_.publish(qgoal_);
+		  ROS_INFO("\n--------------------------------------------- Finished Moving the %s arm ---------------------------------------------\n\n", side_.c_str());      
+		 }
     }
 
   //********************************************************************************************************************************************************************
@@ -1063,6 +1223,7 @@ namespace force_controller
               \n------------------------------\n<%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f> at time: %f\n------------------------------",
              qgoal_.command[0],qgoal_.command[1],qgoal_.command[2],qgoal_.command[3],
              qgoal_.command[4],qgoal_.command[5],qgoal_.command[6],(tnow-t0).toSec());
+
     // Publish initial joint command (/robot/limb/right/joint_command).
     // Check if goal is reached. 
     joint_cmd_pub_.publish(qgoal_);
@@ -1080,8 +1241,6 @@ namespace force_controller
      
         // Print commanded joint angles again and their current time 
         ros::Time tnow = ros::Time::now();
-        
-        // Print commanded joint angles again and their current time
         ROS_INFO_ONCE("Commanded Joint Angle:\
               \n------------------------------\n<%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f> at time: %f\n------------------------------",
              qgoal_.command[0],qgoal_.command[1],qgoal_.command[2],
@@ -1089,7 +1248,7 @@ namespace force_controller
              qgoal_.command[6],(tnow-t0).toSec());
 
         joint_cmd_pub_.publish(qgoal_);
-        isFinished = isMoveFinish(cont);       
+        isFinished = isMoveFinish(cont);
         
         // Control the Position Loop Rate
         pos_rate.sleep();

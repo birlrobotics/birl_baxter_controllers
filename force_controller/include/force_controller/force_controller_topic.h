@@ -9,7 +9,7 @@
 #include <geometry_msgs/WrenchStamped.h>
 #include <geometry_msgs/Vector3.h>
 #include <sensor_msgs/JointState.h>
-#include <force_controller/setPoint.h> // setPoint desired type
+#include <force_controller/setPoint.h> // defines set-point
 
 // Dynamic Reconfigure
 #include <dynamic_reconfigure/server.h>
@@ -50,10 +50,10 @@ using std::string;
 #define WRENCH_SUB_F 1         // Subscribes to /endpoint_state to get the endpoint wrench
 #define SETPNT_SUB_F 1         // Subscribes to /side/force_control/setPoint
 //----------------------------------------------------------------------------------------
-#define JOINTS_PUB_F 1         // Publishes to /joint_command to move the arm to a reference set point.
-#define FILT_W_PUB_F 1         // Publishes a filtered wrench value
-#define WRENCH_ERORR_PUB_F 1   // Publishes the wrench error 
-#define GRAV_PUB_F   1         // Publishes the gravitational offset at the end-effector 
+#define JOINTS_PUB_F 1 			// Publishes to /joint_command to move the arm to a reference set point.
+#define FILT_W_PUB_F 1 			// Publishes a filtered wrench value
+#define WRENCH_ERORR_PUB_F 1	// Publishes the wrench error 
+#define GRAV_PUB_F   1			// Publishes the gravitational offset at the end-effector 
 //----------------------------------------------------------------------------------------
 /*** FT Sensors **/
 #define FT_WACOH_F 1           // Only 1 ft sensor can be true. If none are true, then use baxter's internal torque/end-effector measurements.
@@ -66,7 +66,7 @@ using std::string;
 #define JNTPOS_TORQUE_CONTROLLER 1     // If true, set point is joint angles, otherwise joint torques.
 
 /*** Time  Rates ***/
-#define FC_ROS_RATE     500           // These rates (Hz) set control loop pudate cycles. Inner position control loop needs to run faster than the outer loop.
+#define FC_ROS_RATE     200           // These rates (Hz) set control loop pudate cycles. Inner position control loop needs to run faster than the outer loop.
 #define POS_ROS_RATE    1000 
 #define TIME_OUT        0.25            // Position Controller timeout. Determines how long to run the loop before issuing a finished flag. 
                                        // If too long and robot is in contact with surface, forces will rise dangerously.
@@ -143,14 +143,14 @@ namespace force_controller
 	  sensor_msgs::JointState fill(Eigen::VectorXd dq);
 
     /*** ROS Updates for subscribers  and Parameters ***/
-    void getWrenchEndpoint_wacoh(geometry_msgs::WrenchStamped state);         // Used with Wacoh FT Sensor
-    void getWrenchEndpoint(const baxter_core_msgs::EndpointStateConstPtr& state);    // Used with Baxter's built-in torque data
+	void getWrenchEndpoint_wacoh(geometry_msgs::WrenchStamped state);         			// Used with Wacoh FT Sensor
+    void getWrenchEndpoint(const baxter_core_msgs::EndpointStateConstPtr& state);    	// Used with Baxter's built-in torque data
     //-----------------------------------------------------------------------------
-	  void getBaxterJointState(const baxter_core_msgs::SEAJointStateConstPtr& state);  // Used to get joint positions, velocities, and efforts from Baxter. 
+	void getBaxterJointState(const baxter_core_msgs::SEAJointStateConstPtr& state);  // Used to get joint positions, velocities, and efforts from Baxter. 
     void getSetPoint(const force_controller::setPointConstPtr& state);               // Used to get the desired set point for the control basis
 
-    void updateGains();                                                              // used to change gFp_ and gMp_ after params updated with rqt_reconfig
-	  void updateGains(geometry_msgs::Vector3 gain, std::string type);
+	void updateGains();                                                              // used to change gFp_ and gMp_ after params updated with rqt_reconfig
+	void updateGains(geometry_msgs::Vector3 gain, std::string type);
     
     /*** Controllers ***/
     bool isMoveFinish(bool& result);                                                  // Used by position control to check if goal has been reached.
@@ -260,7 +260,7 @@ namespace force_controller
     ros::Publisher     filtered_wrench_pub_;             // Publish a filtered wrench number
     ros::Publisher     wrench_error_pub_;
 
-    ros::Publisher     endEff_gravOffset_pub_;   				 // Publish the gravitational compensation offset at the end-effector
+    ros::Publisher     endEff_gravOffset_pub_;   		// Publish the gravitational compensation offset at the end-effector
 
 	  ros::ServiceServer ctrl_server_;                     // Used to advertise the control basis service. 
 
@@ -284,33 +284,33 @@ namespace force_controller
     // int dynamic_reconfigure_flag;                       // Currently dynamic_reconfigure code sits outside the class in main, so this will be publc.
 
     // Kinematics model pointers.
-	  Kinematics::Ptr kine_model_;
+	Kinematics::Ptr kine_model_;
 	 
     // Baxter arm strings
-	  std::string side_, tip_name_;
-	  std::vector<std::string> joints_names_;
+	std::string side_, tip_name_;
+	std::vector<std::string> joints_names_;
 
     // Force Controller Vars
-	  Eigen::Vector3d gFp_, gMp_; // Proportional gains
-    Eigen::Vector3d gFv_, gMv_; // Derivative gains
-	  Eigen::VectorXd error_, error_t_1, derror_;
+	Eigen::Vector3d gFp_, gMp_; // Proportional gains
+	Eigen::Vector3d gFv_, gMv_; // Derivative gains
+	Eigen::VectorXd error_, error_t_1, derror_;
 
     double error_norm_;
 
     Eigen::VectorXd                   cur_data_, cur_data_f_;
-    force_controller::setPoint        sP_;         // Contains des values, gains for up to 2 cntrls.
-    std::vector<Eigen::VectorXd>      setPoint_; // Keep [0] for dominant and [1] for subordiante
+    force_controller::setPoint        sP_;         	// Contains des values, gains for up to 2 cntrls.
+    std::vector<Eigen::VectorXd>      setPoint_; 	// Keep [0] for dominant and [1] for subordiante
 
     std::deque<Eigen::VectorXd>       wrenchVec, wrenchVecF; 
 	  std::vector<double>               j_t_1_, jv_t_1_, tm_t_1_, tg_t_1_, tgBase_; // Joints, velocity, torques, gravitational compensation torques. 
 	  std::vector<std::vector<double> > joints_, velocity_, torque_, tg_;  
 
     // Position Controller Vars (used with controller::position_controller
-    sensor_msgs::JointState        update_angles_;
-	  baxter_core_msgs::JointCommand qgoal_;          // Smooth filtered goal with alpha
-	  std::vector<double>            goal_, qd_, qe_; // Comes from position_controller/include/initialPose.h. 
-                                                    // joints_ was removed from here and instead we used the native 
-                                                    // std::vector<std::vector<double> > joints_ always using index[0] instead.
+    sensor_msgs::JointState update_angles_;
+	baxter_core_msgs::JointCommand qgoal_; 	// Smooth filtered goal with alpha
+	std::vector<double> goal_, qd_, qe_;	// Comes from position_controller/include/initialPose.h. 
+                                        	// joints_ was removed from here and instead we used the native 
+											// std::vector<std::vector<double> > joints_ always using index[0] instead.
 
     // Position Controller Tolerance Parameters
 	  double tolerance_, max_error_, alpha_;    
@@ -328,11 +328,10 @@ namespace force_controller
     // Inner Control Loop Flags
     int jntPos_Torque_InnerCtrl_Flag_;
     // Wrench Filtering Flags
-    int wrenchFilteringFlag;       // in getWrenchEndpoint*
+    int wrenchFilteringFlag;  // in getWrenchEndpoint()
     int gravitationalOffsetFlag;   
-    int initialGravCompFlag;        
+    int initialGravCompFlag;  
     int initialFiltering;
-    
 
     // File Streams
 	  std::ofstream save_;

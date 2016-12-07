@@ -19,7 +19,7 @@
 
   <!-- 4. Precision: how accurate must pos_ctrl be. Filter: smoothing btw goal/currpos-->
   <arg name="precision" default="0.01744"/>  
-  <arg name="filter"    default="0.5"/>  
+  <arg name="filter"    default="0.987512"/>  
 
   <!-- 5. Tolerance and Filter Parameter for the Force Controller-->
   <arg name="error_threshold" default="1.0"/>  
