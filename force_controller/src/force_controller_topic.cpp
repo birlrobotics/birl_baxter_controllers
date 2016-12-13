@@ -127,7 +127,7 @@ namespace force_controller
       if(wrench_sub_flag)
         {
           if(ft_wacoh_flag)
-            wrench_sub_ = root_handle_.subscribe<geometry_msgs::WrenchStamped>("/wrench/biased", 1, &controller::getWrenchEndpoint_wacoh, this); //wrench/biased is a topic with offset to zero ft sensor.
+            wrench_sub_ = root_handle_.subscribe<geometry_msgs::WrenchStamped>("/wrench/filter", 1, &controller::getWrenchEndpoint_wacoh, this); //wrench/biased is a topic with offset to zero ft sensor.
           else
             wrench_sub_ = root_handle_.subscribe<baxter_core_msgs::EndpointState>("/robot/limb/" + side_ + "/endpoint_state", 1, &controller::getWrenchEndpoint, this);
           rosCommunicationCtr++;
@@ -1164,14 +1164,14 @@ namespace force_controller
           if(jntPos_Torque_InnerCtrl_Flag_)   
             {
               // Publish positions directly here
-              // qgoal_.mode = qgoal_.POSITION_MODE;
-              // qgoal_.names = joints_names_;
-              // qgoal_.command.resize( 7 );
-              // for(int i=0;i<7;i++)
-              //   qgoal_.command[i]=update_angles_.position[i];
-              // joint_cmd_pub_.publish(qgoal_);        // NOV 8, TESTING IF WE DIRECTLY PUBLISH HOW ROBOT WILL RESPOND  
+              qgoal_.mode = qgoal_.POSITION_MODE;
+              qgoal_.names = joints_names_;
+              qgoal_.command.resize( 7 );
+              for(int i=0;i<7;i++)
+                qgoal_.command[i]=update_angles_.position[i];
+              joint_cmd_pub_.publish(qgoal_);        // NOV 8, TESTING IF WE DIRECTLY PUBLISH HOW ROBOT WILL RESPOND  
               
-              fin=position_controller(update_angles_,to_); // Position Controller
+              // fin=position_controller(update_angles_,to_); // Position Controller
             }        
 
           else 

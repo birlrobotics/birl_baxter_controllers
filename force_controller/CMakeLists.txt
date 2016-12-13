@@ -51,7 +51,12 @@ catkin_package(
 	message_runtime
 )
 
-include_directories( include ${catkin_INCLUDE_DIRS} ${EIGEN_INCLUDE_DIRS} ${dynamic_reconfigure_PACKAGE_PATH}/cmake/cfgbuild.cmake} )
+include_directories( 
+  include
+  ${catkin_INCLUDE_DIRS} 
+  ${EIGEN_INCLUDE_DIRS} 
+  ${dynamic_reconfigure_PACKAGE_PATH}/cmake/cfgbuild.cmake} 
+)
 
 # C++0x support - not quite the same as final C++11!
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")

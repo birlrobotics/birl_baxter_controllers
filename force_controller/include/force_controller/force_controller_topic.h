@@ -66,7 +66,7 @@ using std::string;
 #define JNTPOS_TORQUE_CONTROLLER 1     // If true, set point is joint angles, otherwise joint torques.
 
 /*** Time  Rates ***/
-#define FC_ROS_RATE     200           // These rates (Hz) set control loop pudate cycles. Inner position control loop needs to run faster than the outer loop.
+#define FC_ROS_RATE     600           // These rates (Hz) set control loop pudate cycles. Inner position control loop needs to run faster than the outer loop.
 #define POS_ROS_RATE    1000 
 #define TIME_OUT        0.25            // Position Controller timeout. Determines how long to run the loop before issuing a finished flag. 
                                        // If too long and robot is in contact with surface, forces will rise dangerously.

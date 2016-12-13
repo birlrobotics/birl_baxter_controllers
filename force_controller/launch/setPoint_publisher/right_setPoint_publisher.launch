@@ -16,7 +16,7 @@
   <!--4. Gripper Customization: Set the mass for the camera mold-->
 
   <!--5. Start the Force Controller (currently wacoh) -->
-  <node name="ft_wacoh" pkg="ft_wacoh" type="ft_wacoh_pub" output="screen" respawn="true">
+  <node name="ft_wacoh" pkg="ft_wacoh" type="ft_wacoh_pub" output="screen" respawn="true" >
   </node>
 
   <!-- 6. Run the setpoint_publisher node -->
@@ -32,6 +32,6 @@
   </node>
 
   <!-- 7. Run an rqt_plot viewer on the FT data -->
-  <node name="wrench_plot" pkg="rqt_plot" type="rqt_plot" args="/wrench/biased/wrench/force /wrench/biased/wrench/torque" />
+  <node name="wrench_plot" pkg="rqt_plot" type="rqt_plot" args="/wrench/filtered/wrench/force /wrench/filtered/wrench/torque" />
 
 </launch>
