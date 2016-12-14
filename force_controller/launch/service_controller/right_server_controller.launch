@@ -19,7 +19,7 @@
 
   <!-- 4. Precision: how accurate must pos_ctrl be. Filter: smoothing btw goal/currpos-->
   <arg name="precision" default="0.01744"/>  
-  <arg name="filter"    default="0.5"/>  
+  <arg name="filter"    default="0.98725"/>  
 
   <!-- 5. Tolerance and Filter Parameter for the Force Controller-->
   <arg name="error_threshold" default="1.0"/>  
@@ -34,17 +34,17 @@
   <param name="error_threshold"    value="$(arg error_threshold)" />      
 
   <!-- 7. Change the timeout of JointCommand -->
-  <node name="JointCommand_timeoutDelay" pkg="rostopic" type="rostopic" args="pub -r 10 /robot/limb/right/joint_command_timeout std_msgs/Float64 $(arg timeOut)">
-  </node>
+  <!--node name="JointCommand_timeoutDelay" pkg="rostopic" type="rostopic" args="pub -r 10 /robot/limb/right/joint_command_timeout std_msgs/Float64 $(arg timeOut)">
+  </node-->
 
   <!-- 8. Run control basis controller with force and moment basis controllers -->
-  <node name="right_force_controller" pkg="force_controller" type="controller" output="screen" respawn="false" args="$(arg argv)" launch-prefix="$(arg gdb_arg)" >
+  <node name="right_service_force_controller" pkg="force_controller" type="force_cont_service" output="screen" respawn="false" args="$(arg argv)" launch-prefix="$(arg gdb_arg)" >
   </node>
 
   <!-- 9. Rosbag Record the Wrench Data-->
  <group if="$(arg record)">
    <node name="rosbag_wrench" pkg="rosbag" type="record"
-         args="record -o ${ROS_WORKSPACE}/src/birl_baxter/recorded_motions/motion_files/assembly/bag_analysis/ /robot/limb/right/endpoint_state">
+         args="record -o ${ROS_WORKSPACE}/src/birl_baxter/birl_baxter_recorded_motions/motion_files/assembly/bag_analysis/ /robot/limb/right/endpoint_state /wrench/filtered">
    </node>
  </group>
    

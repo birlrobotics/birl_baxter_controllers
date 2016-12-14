@@ -45,7 +45,7 @@
   <!-- 9. Rosbag Record the Wrench Data-->
   <group if="$(arg record)">
    <node name="rosbag_wrench" pkg="rosbag" type="record"
-         args="record -o /home/vmrguser/ros/indigo/baxter_ws/src/birl_baxter/recorded_motions/motion_files/assembly/bag_analysis/ /robot/limb/left/endpoint_state">
+         args="record -o /home/vmrguser/ros/indigo/baxter_ws/src/birl_baxter/recorded_motions/motion_files/assembly/bag_analysis/ /robot/limb/left/endpoint_state /wrench/filtered">
    </node>
  </group>
    
