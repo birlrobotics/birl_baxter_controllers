@@ -1,0 +1,26 @@
+actions: []
+authors: ''
+brief: ''
+bugtracker: ''
+depends:
+- dynamic_reconfigure
+- catkin
+- roscpp
+- message_runtime
+- sensor_msgs
+- kdl_parser
+- baxter_core_msgs
+- geometry_msgs
+- message_generation
+description: The force_controller package
+license: TODO
+maintainers: ixchel <ixchel@todo.todo>
+msgs:
+- force_control
+- ctrl_basis
+- setPoint
+package_type: package
+repo_url: ''
+srvs:
+- forceControl
+url: ''
