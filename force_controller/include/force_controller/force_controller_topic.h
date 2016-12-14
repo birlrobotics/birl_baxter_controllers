@@ -153,7 +153,7 @@ namespace force_controller
 	void updateGains(geometry_msgs::Vector3 gain, std::string type);
     
     /*** Controllers ***/
-    bool isMoveFinish(bool& result);                                                  // Used by position control to check if goal has been reached.
+  bool isMoveFinish(bool& cont, ros::Time start);                                                  // Used by position control to check if goal has been reached.
     bool position_controller(sensor_msgs::JointState qd, ros::Time);                  // Position Controller
     void torque_controller(Eigen::VectorXd delT, ros::Time t0);                       // Torque controller
 

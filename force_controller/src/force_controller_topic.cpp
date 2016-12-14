@@ -1163,15 +1163,15 @@ namespace force_controller
           // C. Move to desired joint angle position through a positon or torque control loop
           if(jntPos_Torque_InnerCtrl_Flag_)   
             {
-              // Publish positions directly here
-              qgoal_.mode = qgoal_.POSITION_MODE;
-              qgoal_.names = joints_names_;
-              qgoal_.command.resize( 7 );
-              for(int i=0;i<7;i++)
-                qgoal_.command[i]=update_angles_.position[i];
-              joint_cmd_pub_.publish(qgoal_);        // NOV 8, TESTING IF WE DIRECTLY PUBLISH HOW ROBOT WILL RESPOND  
+              // // Publish positions directly here
+              // qgoal_.mode = qgoal_.POSITION_MODE;
+              // qgoal_.names = joints_names_;
+              // qgoal_.command.resize( 7 );
+              // for(int i=0;i<7;i++)
+              //   qgoal_.command[i]=update_angles_.position[i];
+              // joint_cmd_pub_.publish(qgoal_);        // NOV 8, TESTING IF WE DIRECTLY PUBLISH HOW ROBOT WILL RESPOND  
               
-              // fin=position_controller(update_angles_,to_); // Position Controller
+              fin=position_controller(update_angles_,to_); // Position Controller
             }        
 
           else 
@@ -1186,7 +1186,7 @@ namespace force_controller
           // }  while(fin && error_norm_ > force_error_threshold_); // do while
           ROS_INFO_STREAM("isMoveFinish returns: " << fin );
 
-          return true;	
+          return fin;	
         }
       else
         return false;
@@ -1269,10 +1269,12 @@ namespace force_controller
              qgoal_.command[4],qgoal_.command[5],qgoal_.command[6],(tnow-t0).toSec());
 
     // Publish initial joint command (/robot/limb/right/joint_command).
-    // Check if goal is reached. 
     joint_cmd_pub_.publish(qgoal_);
-    bool cont, isFinished = isMoveFinish(cont);
+    ros::Time begin       = ros::Time::now(); // Get time of publiscation
     
+    // Check if goal is reached by calling isMoveFinish
+    bool cont, isFinished = isMoveFinish(cont,begin); // cont indicates whether we should continue, isFinished indicates whether we are finished.
+    ROS_DEBUG_STREAM("isFinished="<<isFinished<<std::endl);
     // Set the position loop rate
     ros::Rate pos_rate(pos_while_loop_rate_);
 
@@ -1285,14 +1287,15 @@ namespace force_controller
      
         // Print commanded joint angles again and their current time 
         ros::Time tnow = ros::Time::now();
-        ROS_INFO_ONCE("Commanded Joint Angle:\
+        ROS_INFO("Commanded Joint Angle:\
               \n------------------------------\n<%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f> at time: %f\n------------------------------",
              qgoal_.command[0],qgoal_.command[1],qgoal_.command[2],
              qgoal_.command[3],qgoal_.command[4],qgoal_.command[5],
              qgoal_.command[6],(tnow-t0).toSec());
 
+        // Try to get closer and try again
         joint_cmd_pub_.publish(qgoal_);
-        isFinished = isMoveFinish(cont);
+        isFinished = isMoveFinish(cont,begin);
         
         // Control the Position Loop Rate
         pos_rate.sleep();
@@ -1308,13 +1311,13 @@ namespace force_controller
 
   //*************************************************************************************************************************
   // isMoveFinish(...)
-  // Input: boolean output to determine if we should CONTINUE this function. 
+  // Input:  outgoing boolean to determine if we should CONTINUE this function. 
   // Output: boolean output to determine if we have reached our goal or FINISHED.
   // 
   // Check to see if the arm has finished moving to desired joint angle position. This function is called at a given rate according to ros duration. 
   // Uses qgoal_ which is originally set in the force_controller. It's of type baxter_core_msgs/JointCommand and contains a mode, command[], and names[].
   //*************************************************************************************************************************
-  bool controller::isMoveFinish(bool& cont)
+  bool controller::isMoveFinish(/*out*/bool& cont, ros::Time begin)
   {  
     double max=0.0;
     std::vector<double> error; error.clear();
@@ -1322,12 +1325,12 @@ namespace force_controller
     // Start counter: used to measure how many times we attempt to move before reaching the goal.
     n_ = n_ + 1;
 
-    // For the first 5 tries, return false. Helps to avoid early computation errors.
-    // if( n_!=0  &&  (n_ % 5 != 0) )  
-    //   {
-    //     cont = false;
-    //     return false;
-    //   }
+    // For the first 5 tries, set the false. Helps to avoid early computation errors associated with ros communication.
+    if( n_!=0  &&  (n_ % 5 != 0) )  
+      {
+        cont = false;
+        return false;
+      }
 
     // Record maximum error across all joints.
     for(unsigned int i=0; i<joints_[0].size(); i++)
@@ -1340,9 +1343,12 @@ namespace force_controller
           max = error.back();
       }
 
+    ROS_INFO_STREAM("Joint Errors are: " << error.back() << std::endl);
+
     // Copy the reference qgoal_ to a local varaible q[i]. 
     // Test if error is going down for each joint.
     int ok=0, keep=0, k=0; // keep: means joints have not reached goal, ie keep trying.
+
     std::vector<double> q;
     q.clear();	q.resize(joints_names_.size()); 
     bool copy;
@@ -1387,7 +1393,7 @@ namespace force_controller
 
             // Have we reached a termination condition? Still have errors?
             if( fabs( error[i] - qe_[i] ) != 0.0 )  
-              keep = keep + 1; // If keep reaches > 0, some joints did not reach goal
+              keep = keep + 1; // If keep > 0, some joints did not reach goal
           }
         else
           ok = ok + 1;
@@ -1395,14 +1401,15 @@ namespace force_controller
     qe_ = error; 
 
     /***** Cases ****/
-    // Timeout=all robot joints do not converge to desired position.Measured from the time the force_controller starts until now. 
+    // Timeout=all robot joints do not converge to desired position. Measured from the time the last joint command was published till now.
     ros::Time tnow = ros::Time::now();
+    double cur_timeOut = (begin-tnow).toSec();
     int maxCycles=timeOut_*fc_while_loop_rate_;
 
     // 1. Info printing case. Before timeout and still working towards the goal.
-    if( (keep + ok == joints_[0].size()) && (ok != joints_names_.size()) && ( ((tnow - to_).toSec()) <= timeOut_ ))
+    if( (keep + ok == joints_[0].size()) && (ok != joints_names_.size()) && ( cur_timeOut <= timeOut_ ))
       {
-        ROS_INFO("Position Controller: At time: %f, keep = %d, ok = %d", (tnow - to_).toSec(), keep, ok);
+        ROS_INFO("Position Controller: At time: %f, keep = %d, ok = %d", cur_timeOut, keep, ok);
         if(n_ % maxCycles == 0) ROS_WARN("Position Controller: Warning!! Max number of cycles reached in isMoveFinish().");
 
         cont = true;   // Continue the loop
@@ -1411,11 +1418,11 @@ namespace force_controller
 
     // 2. Timeout: either reach the best possible solution or obstructed by something. 
     //    else if( (keep <= 2) || ( ((tnow - to_).toSec()) > timeOut_ ) )
-    else if( ((tnow - to_).toSec()) > timeOut_ ) 
+    else if(  cur_timeOut > timeOut_ ) 
       {
-        ROS_ERROR("Position Controller: Timed Out!! At time: %f, and number of cycles: %d", (tnow - to_).toSec(), n_);
+        ROS_ERROR("Position Controller: Timed Out!! At time: %f, and number of cycles: %d", cur_timeOut, n_);
         cont = false;   // Could not get a result.        
-        return true;    // Return a finish command
+        return false;    // Return a finish command
       }
 
     // 3. Success: all 7 joints are under tolerance.
@@ -1425,13 +1432,8 @@ namespace force_controller
         cont = false;   // No need to continue
         return true;    // Return a finish command
       }
-
-    // if(n_ % 200 == 0)
-    //   ROS_WARN("F: time: %f, keep = %d, ok = %d", (tnow-to_).toSec(), keep, ok);	
-    // cont = true;
-    // return false;
   }
-}  //namespace controller
+}
 
 
 int main(int argc, char** argv)
