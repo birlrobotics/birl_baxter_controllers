@@ -60,8 +60,9 @@ using std::string;
 /*** FT Sensors **/
 #define FT_WACOH_F 1           // Only 1 ft sensor can be true. If none are true, then use baxter's internal torque/end-effector measurements.
 //----------------------------------------------------------------------------------------
+
+#define DYN_RECONF_F 0 // Dynamic reconfigure flag. 
 #define CTRBAS_SRV_F 0 // Publishes the control basis service server. When a client call is sent, force_control begins. 
-#define DYN_RECONF_F 1 // Dynamic reconfigure flag. 
 //----------------------------------------------------------------------------------------
 
 /*** Inner Control Loop ***/ 
@@ -86,7 +87,7 @@ namespace force_controller
   // Proportional Gain Parameters for joint controller Const: (0.0050)
   /* double k_fp0=0.2,  k_fp1=0.0001,  k_fp2=0.1,  */
   /*        k_mp0=0.015, k_mp1=0.0015, k_mp2=0.015; // Also sed with dynamc_reconfigure */
-  double k_fp0=0.0,  k_fp1=0.0000,  k_fp2=0.0, 
+  double k_fp0=0.2,  k_fp1=0.0000,  k_fp2=0.0, 
          k_mp0=0.000, k_mp1=0.0000, k_mp2=0.000; // Also used with dynamc_reconfigure
   
 
@@ -133,12 +134,13 @@ namespace force_controller
     // Public Methods
     bool force_controller();                  // **Force Controller. Main method
 
-	  inline bool start() { return init_; }
-    inline int get_rosCommunicationCtr() { return rosCommunicationCtr; }
-    inline double get_fcLoopRate() {return fc_while_loop_rate_; }
-    inline void rosCommunicationCtrUp() { rosCommunicationCtr++; }
+	  inline bool   start()                   { return init_;               }
+    inline int    get_rosCommunicationCtr() { return rosCommunicationCtr; }
+    inline double get_fcLoopRate()          { return fc_while_loop_rate_; }
+    inline void   rosCommunicationCtrUp()   { rosCommunicationCtr++;      }
+
     /*** Dynamic Reconfigure Callback ***/
-    // void callback(force_error_constants::force_error_constantsConfig &config, uint32_t level); // placed it as global in .cpp
+    void callback(force_error_constants::force_error_constantsConfig &config, uint32_t level); 
 
   private:
 

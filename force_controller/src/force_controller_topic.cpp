@@ -5,19 +5,25 @@ namespace force_controller
   // callback(...) for dynamic Reconfigure set as a global function. 
   // When the rqt_reconfigure gui is used and those parameters are changed, the config.param_name in this function will be updated. Then, these parameters need to be set to the private members of your code to record those changes. 
   //***********************************************************************************************************************************************
-  void callback(force_error_constants::force_error_constantsConfig &config, uint32_t level)
+  //void callback(force_error_constants::force_error_constantsConfig &config, uint32_t level)
+  void controller::callback(force_error_constants::force_error_constantsConfig &config, uint32_t level)
   {
     // Print the updated values
-    ROS_INFO("Reconfigure request: %f %f %f %f %f %f", 
+    ROS_INFO("Dynamic Reconfigure Prop gains: %f %f %f %f %f %f\nDerivative gains: %f", 
+             
+             // Proportional Gains
              config.k_fp0,
              config.k_fp1,
              config.k_fp2,
 
              config.k_mp0,
              config.k_mp1,
-             config.k_mp2);
+             config.k_mp2,
+             
+             // Derivative Gains
+             config.k_fv0);
   
-    // Save to the corresponding data members. 
+    // Save proportional gains  to the corresponding data members. 
     k_fp0=config.k_fp0;
     k_fp1=config.k_fp1;
     k_fp2=config.k_fp2;
@@ -25,6 +31,9 @@ namespace force_controller
     k_mp0=config.k_mp0;
     k_mp1=config.k_mp1;
     k_mp2=config.k_mp2;
+
+    // Save derivative gains to the corresponding data members.
+    k_fv0=config.k_fv0;
 
     // change the flag
     force_error_constantsFlag = true;
@@ -1481,6 +1490,7 @@ int main(int argc, char** argv)
   // Instantiate the controller
   force_controller::controller myControl(node);
 
+  // Set up the Dynamic Reconfigure Server to update controller gains: force, moment both proportional and derivative.
   if(myControl.dynamic_reconfigure_flag)
     {
       // (i) Set up the dynamic reconfigure server
@@ -1490,13 +1500,15 @@ int main(int argc, char** argv)
       dynamic_reconfigure::Server<force_error_constants::force_error_constantsConfig>::CallbackType f;
 
       // (iii) Bind that object to the actual callback function
-      f=boost::bind(&force_controller::callback, _1, _2); // Used to pass two params to a callback.
+      //f=boost::bind(&force_controller::callback, _1, _2); // Used to pass two params to a callback.
 
-      // Note: how to bind a private member function: If we cant callback to be a member method of the class controller, then we would need to use something like... 
-      // boost::function<void (force_error_constants::force_error_constantsConfig &,int)> f2( boost::bind( &myclass::fun2, this, _1, _2 ) );
-      // Still not clear on the syntax. Since it's not a member method, we make it a global and also need to use global parameters
+      // Bind a new function f2 with the force_controller::controller::callback.
+      // The left side of the command, tells boost that the callback returns void and has two input parameters. 
+      // It also needs the address of the this pointer of our class, and the indication that it has the two parameters follow the order _1, _2. 
+      boost::function<void (force_error_constants::force_error_constantsConfig &,int) > f2( boost::bind( &force_controller::controller::callback,&myControl, _1, _2 ) );
 
       // (iv) Set the callback to the service server. 
+      f=f2; // Copy the functor data f2 to our dynamic_reconfigure::Server callback type
       srv.setCallback(f);
 
       // Update the rosCommunicationCtr
@@ -1509,39 +1521,39 @@ int main(int argc, char** argv)
       ros::shutdown();
       return 1;
     }
+
   ros::Rate rate( myControl.get_fcLoopRate() );
 
   /*** Different Communication Modes ***/
   while(ros::ok())
     {
 
-      // 1. AsyncSpinner
-      // ros::AsyncSpinner spinner(myControl.get_rosCommunicationCtr());
-      //spinner.start();
-      //ros::waitForShutdown(); 
-
-      // 2. MultiThreadedSpinner
-      // ros::MultiThreadedSpinner spinner(myControl.get_rosCommunicationCtr()); // One spinner per ROS communication object: here we use it for 
-      //   1. Publish joint commands
-      //   2. Subsribe to current joint Angles
-      //   3. Advertice a service server
-      //   4. Subscribe to endpoint wrench (optional set in getWrenchEndpoint)
-      //   5. Dynamic Reconfigure (off)
-      //   6. published filtered wrench
-      //spinner.spin();
-      //ros::waitForShutdown(); 
-
-      // 3. Blocking Spin
-      // ros::spin();
-      // ros::waitForShutdown();
-
-      // 4. Non Blocking spin
+      // 1. Non Blocking spin
       ros::spinOnce();
       myControl.force_controller();
-      
+
+      // 2. Non-blocking AsyncSpinner
+      // ros::AsyncSpinner spinner(myControl.get_rosCommunicationCtr());
+      // spinner.start();
       // myControl.force_controller();
       // spinner.stop();
 
+      // 3. Blocking MultiThreadedSpinner
+      //   1. Subscribe to endpoint wrench (optional set in getWrenchEndpoint)
+      //   2. Subsribe to current joint Angles
+      //   3. Subscribe to set point 
+      //   4. Publish joint commands
+      //   5. Dynamic Reconfigure (on)
+      //   6. Advertice a service server
+      //   7. published filtered wrench (if using Baxter's internal torques)
+      // ros::MultiThreadedSpinner spinner(myControl.get_rosCommunicationCtr()); // One spinner per ROS communication object: here we use it for 
+      // spinner.spin();
+      // ros::waitForShutdown(); 
+
+      // 4. Blocking Spin
+      // ros::spin();
+      // ros::waitForShutdown();
+      
       rate.sleep();
     }
 
