@@ -9,7 +9,7 @@
 #include <geometry_msgs/WrenchStamped.h>
 #include <geometry_msgs/Vector3.h>
 #include <sensor_msgs/JointState.h>
-#include <force_controller/setPoint.h> // defines set-point
+#include <force_controller/setPoint.h> // defines set-point as a message
 
 // Dynamic Reconfigure
 #include <dynamic_reconfigure/server.h>
@@ -53,7 +53,7 @@ using std::string;
 #define JOINTS_PUB_F 1 			// Publishes to /joint_command to move the arm to a reference set point.
 #define FILT_W_PUB_F 1 			// Publishes a filtered wrench value
 #define WRENCH_ERORR_PUB_F 1	// Publishes the wrench error 
-#define GRAV_PUB_F   1			// Publishes the gravitational offset at the end-effector 
+#define GRAV_PUB_F   0 			// Publishes the gravitational offset at the end-effector 
 //----------------------------------------------------------------------------------------
 /*** FT Sensors **/
 #define FT_WACOH_F 1           // Only 1 ft sensor can be true. If none are true, then use baxter's internal torque/end-effector measurements.
@@ -126,7 +126,7 @@ namespace force_controller
     int dynamic_reconfigure_flag;
 
     // Public Methods
-    bool force_controller();                  // **Force Controller. Main method
+    bool force_controller(); // **Force Controller. Main method
 
 	  inline bool start() { return init_; }
     inline int get_rosCommunicationCtr() { return rosCommunicationCtr; }
@@ -147,7 +147,7 @@ namespace force_controller
     void getWrenchEndpoint(const baxter_core_msgs::EndpointStateConstPtr& state);    	// Used with Baxter's built-in torque data
     //-----------------------------------------------------------------------------
     void getBaxterJointState(const baxter_core_msgs::SEAJointStateConstPtr& state);  // Used to get joint positions, velocities, and efforts from Baxter. 
-    void getSetPoint(const force_controller::setPointConstPtr& state);               // Used to get the desired set point for the control basis
+    bool getSetPoint(forceControl::Request &req, forceControl::Response &res);               // Used to get the desired set point for the control basis
 
     void updateGains();                                                              // used to change gFp_ and gMp_ after params updated with rqt_reconfig
     void updateGains(geometry_msgs::Vector3 gain, std::string type);
@@ -254,15 +254,16 @@ namespace force_controller
     // Publishers, subscribers, and services.
 	  ros::Subscriber    joints_sub_;                      // Subscription to get joint angles. 
     ros::Subscriber    wrench_sub_;                      // Used to subscribe to the wrench endpoint. 
-    ros::Subscriber    setPoint_sub_;
+    //ros::Subscriber    setPoint_sub_;
 
     ros::Publisher     joint_cmd_pub_;                   // Publication to command joints 
     ros::Publisher     filtered_wrench_pub_;             // Publish a filtered wrench number
     ros::Publisher     wrench_error_pub_;
 
-    ros::Publisher     endEff_gravOffset_pub_;   		// Publish the gravitational compensation offset at the end-effector
+    ros::Publisher     endEff_gravOffset_pub_;   				 // Publish the gravitational compensation offset at the end-effector
 
-	  ros::ServiceServer ctrl_server_;                     // Used to advertise the control basis service. 
+	  ros::ServiceServer setPoint_sub_;
+    //ros::ServiceServer ctrl_server_;                     // Used to advertise the control basis service. 
 
     // Publish/Subscribe/Service Flags and Counter. 
     // Given that we are using a multithreaded method, it's good to automatically generate a counter of how many things we publish/subscribe/service.

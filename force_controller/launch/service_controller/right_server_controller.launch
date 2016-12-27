@@ -3,6 +3,7 @@
 
   <!-- Take command line arguments -->
   <arg name="argv" default="" />
+  <arg name="side" default="right"/>
 
   <!-- ROSBAG Recording -->
   <arg name="record" default="false" />
@@ -28,7 +29,7 @@
   <param name="urdf" command="cat '$(find baxter_description)/urdf/baxter.urdf'"    />
   <param name="root_name"          value="base"                   />
   <param name="tip_name"           value="right_gripper"          />
-  <param name="side" type="string" value="right"                  />
+  <param name="side" type="string" value="$(arg side)"            />
   <param name="precision"          value="$(arg precision)"       />    
   <param name="filter"             value="$(arg filter)"          />    
   <param name="error_threshold"    value="$(arg error_threshold)" />      
@@ -37,9 +38,13 @@
   <!--node name="JointCommand_timeoutDelay" pkg="rostopic" type="rostopic" args="pub -r 10 /robot/limb/right/joint_command_timeout std_msgs/Float64 $(arg timeOut)">
   </node-->
 
-  <!-- 8. Run control basis controller with force and moment basis controllers -->
-  <node name="right_service_force_controller" pkg="force_controller" type="force_cont_service" output="screen" respawn="false" args="$(arg argv)" launch-prefix="$(arg gdb_arg)" >
+  <!-- 8. Run service server control basis controller -->
+  <node name="$(arg side)_service_force_controller" pkg="force_controller" type="force_cont_service" output="screen" respawn="false" args="$(arg argv)" launch-prefix="$(arg gdb_arg)" >
   </node>
+
+  <!-- 9. Optionally run the service client which contains setpoint and gains.-->
+  <!-- node name="$(arg side)_service_client_setPoint" pkg="force_controller" type="force_control_srv_client" args="" >
+</node-->
 
   <!-- 9. Rosbag Record the Wrench Data-->
  <group if="$(arg record)">

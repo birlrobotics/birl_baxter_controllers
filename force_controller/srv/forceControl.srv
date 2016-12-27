@@ -1,18 +1,24 @@
 #Number of Controllers
 int32 num_ctrls
 
-# Name of the type(s) of Controller(s): force or moment
-string[] type
+# Type of dominant controller: force or moment
+string domType
 
 # Desired force/moment (3D)
-geometry_msgs/Vector3[] desired
+geometry_msgs/Vector3[] domDes
 
 # Gains force/moment (3D) this is optional if not given use default
-geometry_msgs/Vector3[] gains
+geometry_msgs/Vector3[] domGains
+
+# Type of subordianTE controller: force or moment
+string subType
+
+# Desired force/moment (3D)
+geometry_msgs/Vector3[] subDes
+
+# Gains force/moment (3D) this is optional if not given use default
+geometry_msgs/Vector3[] subGains
 
 ---
-# Error(s) 
-float64[] error
-
-# Joint Angle Update
-sensor_msgs/JointState update_angles
+# return
+int32 output
