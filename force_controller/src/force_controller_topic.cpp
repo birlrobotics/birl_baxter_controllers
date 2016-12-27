@@ -12,20 +12,22 @@ namespace force_controller
              config.k_fp0,
              config.k_fp1,
              config.k_fp2,
+
              config.k_mp0,
              config.k_mp1,
              config.k_mp2);
   
-  // Save to the corresponding data members. 
-  k_fp0=config.k_fp0;
-  k_fp1=config.k_fp1;
-  k_fp2=config.k_fp2;
-  k_mp0=config.k_mp0;
-  k_mp1=config.k_mp1;
-  k_mp2=config.k_mp2;
+    // Save to the corresponding data members. 
+    k_fp0=config.k_fp0;
+    k_fp1=config.k_fp1;
+    k_fp2=config.k_fp2;
 
-  // change the flag
-  force_error_constantsFlag = true;
+    k_mp0=config.k_mp0;
+    k_mp1=config.k_mp1;
+    k_mp2=config.k_mp2;
+
+    // change the flag
+    force_error_constantsFlag = true;
 
   }
 
@@ -96,6 +98,12 @@ namespace force_controller
       // State
       exe_ = false;	jo_ready_ = false;
 
+      // Gravitational Compensation      
+      gravitationalOffsetFlag=0;
+
+      //IIR Filtering Flag
+      IIR_flag=IIR_FLAG_F;
+
       /***************************************************** Publisher, subscriber and Service Advertisement *******************************************************************/
       // Set all the flag values ros ros communication objects
       rosCommunicationCtr=0;
@@ -113,8 +121,10 @@ namespace force_controller
       wrench_error_pub_flag        =WRENCH_ERORR_PUB_F;
 
       ctrl_server_flag             =CTRBAS_SRV_F; 
+      
+      // Dynamic Reconfigure
       dynamic_reconfigure_flag     =DYN_RECONF_F; 
-      force_error_constantsFlag=false; 
+      force_error_constantsFlag    =false; 
 
       // 1. Subscription object to get current joint angle positions, velocities, joint torques, and gravitational compensation torques.
       if(joints_sub_flag)
@@ -127,7 +137,7 @@ namespace force_controller
       if(wrench_sub_flag)
         {
           if(ft_wacoh_flag)
-            wrench_sub_ = root_handle_.subscribe<geometry_msgs::WrenchStamped>("/wrench/filter", 1, &controller::getWrenchEndpoint_wacoh, this); //wrench/biased is a topic with offset to zero ft sensor.
+            wrench_sub_ = root_handle_.subscribe<geometry_msgs::WrenchStamped>("/wrench/filtered", 1000, &controller::getWrenchEndpoint_wacoh, this); //wrench/biased is a topic with offset to zero ft sensor.
           else
             wrench_sub_ = root_handle_.subscribe<baxter_core_msgs::EndpointState>("/robot/limb/" + side_ + "/endpoint_state", 1, &controller::getWrenchEndpoint, this);
           rosCommunicationCtr++;
@@ -264,7 +274,7 @@ namespace force_controller
     update.name = joints_names_;
     update.position.clear();
 
-    // Add delta joint angle updates to current angles held in joints_[0]. 
+    // Add delta joint angle updates to current angles held in joints_[0]. joints_[0] was selected as the newest element for data.
     for(unsigned int i=0; i<joints_names_.size(); i++)
       update.position.push_back(dq(i)+joints_[0][i]);
 
@@ -639,23 +649,23 @@ namespace force_controller
   //*****************************************************************************
   void controller::getSetPoint(const force_controller::setPointConstPtr& sP)
   {
-      // Number of Controllers
-      sP_.num_ctrls=sP->num_ctrls;
+    // Number of Controllers
+    sP_.num_ctrls=sP->num_ctrls;
 
-      if(sP_.num_ctrls<0 || sP_.num_ctrls>2)
-        {
-          ROS_ERROR("The number of controllers seen in getSetPoint() is less than 0 or more than 2. We can only handle 1 or 2.");
-        }
+    if(sP_.num_ctrls<0 || sP_.num_ctrls>2)
+      {
+        ROS_ERROR("The number of controllers seen in getSetPoint() is less than 0 or more than 2. We can only handle 1 or 2.");
+      }
 
-      // Dominant Controller data
-      sP_.domType =sP->domType;
-      sP_.domDes  =sP->domDes;   
-      sP_.domGains=sP->domGains; 
+    // Dominant Controller data
+    sP_.domType =sP->domType;
+    sP_.domDes  =sP->domDes;   
+    sP_.domGains=sP->domGains; 
 
-      // Subordinate Controller data (if any)
-      sP_.subType =sP->subType;
-      sP_.subDes  =sP->subDes;
-      sP_.subGains=sP->subGains;
+    // Subordinate Controller data (if any)
+    sP_.subType =sP->subType;
+    sP_.subDes  =sP->subDes;
+    sP_.subGains=sP->subGains;
   }
   //***************************************************************************************************************************************************
   // getBaxterJointState(...)
@@ -784,32 +794,57 @@ namespace force_controller
         jo_ready_ = true;
       }
 
-    // IIR Low Pass Filter: create the filtered values.
-    for(unsigned int i=0; i<7; i++)
+    // IIR Low Pass Filter: create the filtered values. TODO: currently this filter actually introduces a drift in the arm. DO NOT USE
+    if(IIR_flag) 
       {
-        jtf[i] = 0.0784*j_t_1_[i]  + 1.5622*joints_[0][i]   - 0.6413*joints_[1][i];
-        jvf[i] = 0.0784*jv_t_1_[i] + 1.5622*velocity_[0][i] - 0.6413*velocity_[1][i];
-        ttf[i] = 0.0784*tm_t_1_[i] + 1.5622*torque_[0][i]   - 0.6413*torque_[1][i];
-        tgf[i] = 0.0784*tg_t_1_[i] + 1.5622*tg_[0][i]       - 0.6413*tg_[1][i];
+        for(unsigned int i=0; i<7; i++)
+          {
+            jtf[i] = 0.0784*j_t_1_[i]  + 1.5622*joints_[0][i]   - 0.6413*joints_[1][i];
+            jvf[i] = 0.0784*jv_t_1_[i] + 1.5622*velocity_[0][i] - 0.6413*velocity_[1][i];
+            ttf[i] = 0.0784*tm_t_1_[i] + 1.5622*torque_[0][i]   - 0.6413*torque_[1][i];
+            tgf[i] = 0.0784*tg_t_1_[i] + 1.5622*tg_[0][i]       - 0.6413*tg_[1][i];
         
-        j_t_1_[i]  = jt[i];
-        jv_t_1_[i] = jv[i];
-        tm_t_1_[i] = tt[i];
-        tg_t_1_[i] = tg[i];
+            j_t_1_[i]  = jt[i];
+            jv_t_1_[i] = jv[i];
+            tm_t_1_[i] = tt[i];
+            tg_t_1_[i] = tg[i];
 
-        // Save filtered value to private members
-        joints_[1][i]   = joints_[0][i];         // Make index 1, older element
-        joints_[0][i]   = jtf[i];                // Save filtered val to head of vec
+            // Save filtered value to private members
+            joints_[1][i]   = joints_[0][i];         // Make index 1, older element (not using push back. This is confusing as it breaks with the practice of the rest of the code).
+            joints_[0][i]   = jtf[i];                // Save filtered val to head of vec
+            
 
-        velocity_[1][i] = velocity_[0][i];
-        velocity_[0][i] = jvf[i];        
+            velocity_[1][i] = velocity_[0][i];
+            velocity_[0][i] = jvf[i];        
 
-        torque_[1][i] = torque_[0][i];
-        torque_[0][i] = ttf[i];
+            torque_[1][i] = torque_[0][i];
+            torque_[0][i] = ttf[i];
 
-        tg_[1][i]     = tg_[0][i];
-        tg_[0][i]     = tgf[i];
+            tg_[1][i]     = tg_[0][i];
+            tg_[0][i]     = tgf[i];
+          }
       }
+    else
+      {
+            j_t_1_[i]  = jt[i];
+            jv_t_1_[i] = jv[i];
+            tm_t_1_[i] = tt[i];
+            tg_t_1_[i] = tg[i];
+
+            // Save current values to previous values
+            joints_[1][i]   = joints_[0][i];         // Make index 1, older element (not using push back. This is confusing as it breaks with the practice of the rest of the code).            
+            joints_[0][i]   = jt[i];                 
+
+            velocity_[1][i] = velocity_[0][i];
+            velocity_[0][i] = jv[i];        
+
+            torque_[1][i] = torque_[0][i];
+            torque_[0][i] = tt[i];
+
+            tg_[1][i]     = tg_[0][i];
+            tg_[0][i]     = tg[i];
+      }
+
 
     // Save torque and gravitation torque info to file.
     if(exe_ && save_.is_open())
@@ -1438,7 +1473,7 @@ namespace force_controller
 
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "control_basis");
+  ros::init(argc, argv, "control_basis_controller");
 
   // Create a node namespace. Ie for service/publication: <node_name>/topic_name or for parameters: <name_name>/param_name 
   ros::NodeHandle node("~"); 
@@ -1481,8 +1516,8 @@ int main(int argc, char** argv)
     {
 
       // 1. AsyncSpinner
-      ros::AsyncSpinner spinner(myControl.get_rosCommunicationCtr());
-      spinner.start();
+      // ros::AsyncSpinner spinner(myControl.get_rosCommunicationCtr());
+      //spinner.start();
       //ros::waitForShutdown(); 
 
       // 2. MultiThreadedSpinner
@@ -1501,8 +1536,12 @@ int main(int argc, char** argv)
       // ros::waitForShutdown();
 
       // 4. Non Blocking spin
-      // ros::spinOnce();
+      ros::spinOnce();
       myControl.force_controller();
+      
+      // myControl.force_controller();
+      // spinner.stop();
+
       rate.sleep();
     }
 

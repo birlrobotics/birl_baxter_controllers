@@ -21,6 +21,9 @@
   <arg name="precision" default="0.01744"/>  
   <arg name="filter"    default="0.987512"/>  
 
+  <!-- change rate of joint publisher rostopic pub /robot/joint_state_publh_rate std_msgs/UInt16 180 -->
+  <!-- node name="rostopic" ... -->
+
   <!-- 5. Tolerance and Filter Parameter for the Force Controller-->
   <arg name="error_threshold" default="1.0"/>  
 

@@ -1,5 +1,5 @@
-#ifndef CONTROLLER_
-#define CONTROLLER_
+#ifndef CONTROLLER_H
+#define CONTROLLER_H
 
 // ROS System
 #include <ros/ros.h>
@@ -13,8 +13,7 @@
 
 // Dynamic Reconfigure
 #include <dynamic_reconfigure/server.h>
-#include <force_controller/force_error_constantsConfig.h>
-//#include "/home/vmrguser/ros/indigo/baxter_ws/devel/include/force_controller/force_error_constantsConfig.h"
+#include <force_controller/force_error_constantsConfig.h> // Defines parameters to modify
 
 // Baxter Message Types
 #include <baxter_core_msgs/JointCommand.h>  // To command the joints 
@@ -49,17 +48,20 @@ using std::string;
 #define JOINTS_SUB_F 1 	       // Subscribes to /gravity_compensation_torques to get joints, velocities, torques, and gravity compensations
 #define WRENCH_SUB_F 1         // Subscribes to /endpoint_state to get the endpoint wrench
 #define SETPNT_SUB_F 1         // Subscribes to /side/force_control/setPoint
-//----------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------- -
 #define JOINTS_PUB_F 1 			// Publishes to /joint_command to move the arm to a reference set point.
-#define FILT_W_PUB_F 1 			// Publishes a filtered wrench value
-#define WRENCH_ERORR_PUB_F 1	// Publishes the wrench error 
-#define GRAV_PUB_F   1			// Publishes the gravitational offset at the end-effector 
+#define FILT_W_PUB_F 0 			// Publishes a filtered wrench value
+#define WRENCH_ERORR_PUB_F 0	// Publishes the wrench error 
+#define GRAV_PUB_F   0			// Publishes the gravitational offset at the end-effector 
 //----------------------------------------------------------------------------------------
+
+// IIR Filtering
+#define IIR_FLAG_F 0        // Applied to joint angles. Currently NOT WORKING causes arm to drift.
 /*** FT Sensors **/
 #define FT_WACOH_F 1           // Only 1 ft sensor can be true. If none are true, then use baxter's internal torque/end-effector measurements.
 //----------------------------------------------------------------------------------------
 #define CTRBAS_SRV_F 0 // Publishes the control basis service server. When a client call is sent, force_control begins. 
-#define DYN_RECONF_F 0 // Dynamic reconfigure flag
+#define DYN_RECONF_F 1 // Dynamic reconfigure flag. 
 //----------------------------------------------------------------------------------------
 
 /*** Inner Control Loop ***/ 
@@ -82,12 +84,15 @@ namespace force_controller
   static const int LEFT = 0, RIGHT = 1;
 
   // Proportional Gain Parameters for joint controller Const: (0.0050)
-  double k_fp0=0.2,  k_fp1=0.0001,  k_fp2=0.1, 
-         k_mp0=0.015, k_mp1=0.0015, k_mp2=0.015; // Also sed with dynamc_reconfigure
+  /* double k_fp0=0.2,  k_fp1=0.0001,  k_fp2=0.1,  */
+  /*        k_mp0=0.015, k_mp1=0.0015, k_mp2=0.015; // Also sed with dynamc_reconfigure */
+  double k_fp0=0.0,  k_fp1=0.0000,  k_fp2=0.0, 
+         k_mp0=0.000, k_mp1=0.0000, k_mp2=0.000; // Also used with dynamc_reconfigure
   
 
   // Derivative Gain Parameters for joint controller Const: Const: 0.0025
-  double dg=0.25;
+  //double dg=0.25;
+  double dg=0;
   double k_fv0=dg, k_fv1=dg, k_fv2=dg, k_mv0=dg, k_mv1=dg, k_mv2=dg;
 
   bool force_error_constantsFlag = false;
@@ -327,11 +332,17 @@ namespace force_controller
     /*** Flags ***/
     // Inner Control Loop Flags
     int jntPos_Torque_InnerCtrl_Flag_;
+
     // Wrench Filtering Flags
     int wrenchFilteringFlag;  // in getWrenchEndpoint()
+    int initialFiltering;     // First iteration of wrenchFiltering
+
+    // Gravitational Flags
     int gravitationalOffsetFlag;   
     int initialGravCompFlag;  
-    int initialFiltering;
+
+    // IIR Filtering
+    int IIR_flag;
 
     // File Streams
 	  std::ofstream save_;
@@ -341,6 +352,7 @@ namespace force_controller
     double timeOut_;
     double fc_while_loop_rate_;
     double pos_while_loop_rate_;
+
   };
 }
-#endif /* REPLAY_ */
+#endif /* CONTROLLER_H */

@@ -13,10 +13,10 @@
 #include <string>
 #define RATE 200 // Parameter to set publication rate
 //---------------------------------------------------------------------------------------------------
-// Can get setPoint from launch file, command line, or another publisher--this yet to be implemented.
-// setPoint looks like:
+// Can get setPoint from launch file, command line, or another publisher--the last one yet to be implemented.
+// setPoint looks as follows:
 //---------------------------------------------------------------------------------------------------
-// #Number of Controllers
+// # Number of Controllers
 // int32 num_ctrls
 // 
 // # Name of the type(s) of Controller(s): force or moment

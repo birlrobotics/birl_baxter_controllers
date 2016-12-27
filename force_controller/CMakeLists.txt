@@ -19,14 +19,24 @@ find_package(cmake_modules REQUIRED)
 find_package(orocos_kdl)
 find_package(Eigen REQUIRED)
 
-## Dynamic Reconfigure: takes path to all cfg files taht we want to build.
-generate_dynamic_reconfigure_options(cfg/force_error_constants.cfg)
+## Dynamic Reconfigure: takes path to all cfg files that we want to build.
+generate_dynamic_reconfigure_options(
+  cfg/force_error_constants.cfg
+  )
 
 # Generate message files in the 'msg' folder
-add_message_files(DIRECTORY msg FILES setPoint.msg)
+add_message_files(
+  DIRECTORY 
+  msg 
+  FILES 
+  setPoint.msg)
 
 # Generate services in the 'srv' folder
-add_service_files(DIRECTORY srv FILES forceControl.srv)
+add_service_files(
+  DIRECTORY 
+  srv 
+  FILES 
+  forceControl.srv)
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(DEPENDENCIES
@@ -65,21 +75,21 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 add_library(mykinematics src/kinematics.cpp)
 target_link_libraries(mykinematics ${catkin_LIBRARIES})
 
-# 1a. Force Controller Service Server 
-add_executable       (force_cont_service src/force_controller_service.cpp)
-target_link_libraries(force_cont_service ${catkin_LIBRARIES})
-add_dependencies     (force_cont_service %{PROJECT_NAME}_gencfg) # Builds dyn_rec headers before use.
-add_dependencies     (force_cont_service ${catkin_EXPORTED_TARGETS}) # setPoint.msg??
-add_dependencies     (mykinematics ${catkin_EXPORTED_TARGETS})
-target_link_libraries(force_cont_service ${catkin_LIBRARIES} mykinematics) # links kin lib.
+# # 1a. Force Controller Service Server 
+# add_executable       (force_cont_service src/force_controller_service.cpp)
+# target_link_libraries(force_cont_service ${catkin_LIBRARIES})
+# add_dependencies     (force_cont_service %{PROJECT_NAME}_gencfg) # Builds dyn_rec headers before use.
+# add_dependencies     (force_cont_service ${catkin_EXPORTED_TARGETS}) # setPoint.msg??
+# add_dependencies     (mykinematics ${catkin_EXPORTED_TARGETS})
+# target_link_libraries(force_cont_service ${catkin_LIBRARIES} mykinematics) # links kin lib.
 
-# 1b. Force Controller Service Client 
-add_executable       (force_control_srv_client  src/force_control_srv_client/force_control_srv_client.cpp)
-target_link_libraries(force_control_srv_client ${catkin_LIBRARIES})
-add_dependencies     (force_control_srv_client %{PROJECT_NAME}_generate_messages_cpp)
-add_dependencies     (force_control_srv_client ${catkin_EXPORTED_TARGETS}) # setPoint.msg??
+# # 1b. Force Controller Service Client 
+#  add_executable       (force_control_srv_client  src/force_control_srv_client/force_control_srv_client.cpp)
+#  target_link_libraries(force_control_srv_client ${catkin_LIBRARIES})
+#  add_dependencies     (force_control_srv_client %{PROJECT_NAME}_generate_messages_cpp)
+#  add_dependencies     (force_control_srv_client ${catkin_EXPORTED_TARGETS}) # setPoint.msg??
 
-# 2a. Force Controller Set Point Subscriber
+# 2a. Force Controller (Set Point Subscriber)
 add_executable       (force_cont_topic src/force_controller_topic.cpp)
 target_link_libraries(force_cont_topic ${catkin_LIBRARIES})
 add_dependencies     (mykinematics ${catkin_EXPORTED_TARGETS})
