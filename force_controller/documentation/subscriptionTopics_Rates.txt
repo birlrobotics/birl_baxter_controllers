@@ -1,0 +1,8 @@
+joints: getBaxterJointState		695 pub@100 or 200 if changed manually/launch file
+wrench: getWrenchEndpoint_wacoh		355 pub@200
+setPoint: getSetPoint			646 pub@200
+----
+JOINT COMMAND publisher @ 600(ForceCont)-1000(PosCont)Hz
+
+--- TODO
+eliminate the publication of filtered wrench in topic/service

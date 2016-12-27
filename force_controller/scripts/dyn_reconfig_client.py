@@ -2,7 +2,7 @@
 
 PACKAGE = 'force_controller'
 import rospy
-import pdb
+import ipdb
 import dynamic_reconfigure.client
 
 

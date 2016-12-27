@@ -1,5 +1,5 @@
-#ifndef FORCE_CONTROLLER_H_
-#define FORCE_CONTROLLER_H_
+#ifndef KINEMATICS_H
+#define KINEMATICS_H
 
 // STD
 #include <cstring>
