@@ -58,15 +58,22 @@ using std::string;
 // IIR Filtering
 #define IIR_FLAG_F 0        // Applied to joint angles. Currently NOT WORKING causes arm to drift.
 /*** FT Sensors **/
-#define FT_WACOH_F 1           // Only 1 ft sensor can be true. If none are true, then use baxter's internal torque/end-effector measurements.
+#define FT_WACOH_F 1        // Only 1 ft sensor can be true. If none are true, then use baxter's internal torque/end-effector measurements.
 //----------------------------------------------------------------------------------------
 
+// Dynamic Reconfigure
 #define DYN_RECONF_F 0 // Dynamic reconfigure flag. 
 #define CTRBAS_SRV_F 0 // Publishes the control basis service server. When a client call is sent, force_control begins. 
 //----------------------------------------------------------------------------------------
 
-/*** Inner Control Loop ***/ 
+/*** Controllers ***/
+
+// Inner Control Loop
 #define JNTPOS_TORQUE_CONTROLLER 1     // If true, set point is joint angles, otherwise joint torques.
+
+#define ERROR_DERIVATIVE_F 0           // Do you want to use the derivative term in the PID controller
+#define ERROR_INTEGRAL_F   0	         // Do you want to use the integral term in the PID controller
+//----------------------------------------------------------------------------------------
 
 /*** Time  Rates ***/
 #define FC_ROS_RATE     600           // These rates (Hz) set control loop pudate cycles. Inner position control loop needs to run faster than the outer loop.
@@ -84,20 +91,7 @@ namespace force_controller
   // Arm Parameters
   static const int LEFT = 0, RIGHT = 1;
 
-  // Proportional Gain Parameters for joint controller Const: (0.0050)
-  /* double k_fp0=0.2,  k_fp1=0.0001,  k_fp2=0.1,  */
-  /*        k_mp0=0.015, k_mp1=0.0015, k_mp2=0.015; // Also sed with dynamc_reconfigure */
-  double k_fp0=0.2,  k_fp1=0.0000,  k_fp2=0.0, 
-         k_mp0=0.000, k_mp1=0.0000, k_mp2=0.000; // Also used with dynamc_reconfigure
-  
-
-  // Derivative Gain Parameters for joint controller Const: Const: 0.0025
-  //double dg=0.25;
-  double dg=0;
-  double k_fv0=dg, k_fv1=dg, k_fv2=dg, k_mv0=dg, k_mv1=dg, k_mv2=dg;
-
-  bool force_error_constantsFlag = false;
-
+  // Least Square's Error Approximation for Baxter Joint Angles vs Joint Torques
   // These are the parameters that conform a 2nd order least squares error approximation to a function composed by Baxter Joint Angles as the independent variable and Joint Torques as a dependent variable. These parameters are then used to model ax^2 + bx^1 + cx^0 for each of the 7 joints, for both arms giving rise to a 2x7x3 structure.
   static const double COEFF[2][7][3] = {
     // Left Arm
@@ -165,7 +159,7 @@ namespace force_controller
     void torque_controller(Eigen::VectorXd delT, ros::Time t0);                       // Torque controller
 
     /*** Force Control Support Methods and Null Space Methods ***/
-    // double computeError(...) // inline method below.
+	  double computeError(std::string, Eigen::Vector3d, Eigen::Vector3d);
     Eigen::Vector3d extractWrench_Force_Moment(string type);
 	  bool JacobianProduct(std::string type, Eigen::VectorXd& update);
 	  bool JacobianErrorProduct(std::string type, Eigen::VectorXd& update); // changed the order of multiplication by gains to see if it improves controller.
@@ -194,52 +188,6 @@ namespace force_controller
         save_.close();
 
       joints_sub_.shutdown();
-	  }
-
-
-    //*******************************************************************************************
-    // computeError(...)
-    // Simply computes the difference between the desired amount and the actual amount.
-    // type: force or moment
-    // xt is the current data in force/moment
-    // xd is the desired data 
-    //*******************************************************************************************
-	  inline double computeError(std::string type, Eigen::Vector3d xt, Eigen::Vector3d xd)
-	  {
-      double mag;
-      int    offset = 0;
-      if(type == "moment") offset = 3;
-
-      // Compute the error between cur and des  data, save in error_ private member
-      error_ = Eigen::VectorXd::Zero(6);
-      for(unsigned int i=0; i<3; i++)
-        error_(i+offset) = (xd(i)-xt(i)); // -1 is to help us descend the gradient error. 
-        
-      // Compute the derivative error using a finite difference approximation. 
-      // TODO: should try the symmetric difference quotient. (error+1-error_1)/2rate
-      // TODO: Can filter the derror signal.
-      int position_derror_flag=0;
-      if(position_derror_flag)
-        {
-          for(unsigned int i=0; i<3; i++)     
-            derror_(i+offset) = (error_(i+offset) - error_t_1(i+offset))*fc_while_loop_rate_;          // Instead of dividing by time, multiply by the rate.
-        }
-      else
-        {
-          for(unsigned int i=0; i<3; i++)     
-            derror_(i+offset) = (velocity_[0][i+offset] - velocity_[1][i+offset])*fc_while_loop_rate_; // Instead of dividing by time, multiply by the rate.
-        }
-
-      if(errorCtr_==1)
-        derror_=Eigen::VectorXd::Zero(6);
-      
-      // Save current error to error_t_1
-      error_t_1 = error_;
-
-      // Also compute the norm. Useful to check if  error decreases over time. 
-      mag = error_.norm();
-
-      return mag;
 	  }
 
     //*******************************************************************************************
@@ -297,33 +245,44 @@ namespace force_controller
 	std::string side_, tip_name_;
 	std::vector<std::string> joints_names_;
 
-    // Force Controller Vars
+    // Force Controller PID Gains
 	Eigen::Vector3d gFp_, gMp_; // Proportional gains
 	Eigen::Vector3d gFv_, gMv_; // Derivative gains
-	Eigen::VectorXd error_, error_t_1, derror_;
+  Eigen::Vector3d gFi_, gMi_; // Integral gains
+	Eigen::VectorXd error_, error_t_1, derror_, ierror_;
 
-    double error_norm_;
+  double error_norm_;
 
-    Eigen::VectorXd                   cur_data_, cur_data_f_;
-    force_controller::setPoint        sP_;         	// Contains des values, gains for up to 2 cntrls.
-    std::vector<Eigen::VectorXd>      setPoint_; 	// Keep [0] for dominant and [1] for subordiante
+  Eigen::VectorXd                   cur_data_, cur_data_f_;
+  force_controller::setPoint        sP_;         	// Contains des values, gains for up to 2 cntrls.
+  std::vector<Eigen::VectorXd>      setPoint_; 	// Keep [0] for dominant and [1] for subordiante
 
-    std::deque<Eigen::VectorXd>       wrenchVec, wrenchVecF; 
-	  std::vector<double>               j_t_1_, jv_t_1_, tm_t_1_, tg_t_1_, tgBase_; // Joints, velocity, torques, gravitational compensation torques. 
-	  std::vector<std::vector<double> > joints_, velocity_, torque_, tg_;  
+  std::deque<Eigen::VectorXd>       wrenchVec, wrenchVecF; 
+  std::vector<double>               j_t_1_, jv_t_1_, tm_t_1_, tg_t_1_, tgBase_; // Joints, velocity, torques, gravitational compensation torques. 
+  std::vector<std::vector<double> > joints_, velocity_, torque_, tg_;  
 
-    // Position Controller Vars (used with controller::position_controller
-    sensor_msgs::JointState update_angles_;
+  // Position Controller Vars (used with controller::position_controller
+  sensor_msgs::JointState update_angles_;
 	baxter_core_msgs::JointCommand qgoal_; 	// Smooth filtered goal with alpha
-	std::vector<double> goal_, qd_, qe_;	// Comes from position_controller/include/initialPose.h. 
+	std::vector<double> goal_, qd_, qe_;	  // Comes from position_controller/include/initialPose.h. 
                                         	// joints_ was removed from here and instead we used the native 
-											// std::vector<std::vector<double> > joints_ always using index[0] instead.
+											                    // std::vector<std::vector<double> > joints_ always using index[0] instead.
 
     // Position Controller Tolerance Parameters
 	  double tolerance_, max_error_, alpha_;    
 
     // Force Controller Tolerance Parameters
     double force_error_threshold_;
+
+    // Force Controller PID Terms
+    double k_fp0,k_fp1,k_fp2,k_mp0,k_mp1,k_mp2; 
+    double k_fv0,k_fv1,k_fv2,k_mv0,k_mv1,k_mv2;
+    double k_fi0,k_fi1,k_fi2,k_mi0,k_mi1,k_mi2;
+
+    int derror_flag_;
+    int ierror_flag_;
+
+    bool force_error_constantsFlag;
 
     // Status Boolean Flags
 	  bool init_, exe_, jo_ready_;
