@@ -6,3 +6,5 @@ JOINT COMMAND publisher @ 600(ForceCont)-1000(PosCont)Hz
 
 --- TODO
 eliminate the publication of filtered wrench in topic/service
+current gain 0.035, does not seem responsive, but anything higher gives aggressive response. 
+Try to combine with integral/derivative terms and position loop contro with different alpha's.

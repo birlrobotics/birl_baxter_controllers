@@ -4,6 +4,7 @@
   <!-- 1. To debug just add parameter debug:=true in command window -->
   <arg name="debug" default="false"/>
   <arg name="side"  default="right"/>
+  <arg name="sim"   default="false"/>
   <arg name="male_camera_mold_mass" default="0.8342"/>
 
   <!-- 2. Load side we want to publish on -->
@@ -16,8 +17,10 @@
   <!--4. Gripper Customization: Set the mass for the camera mold-->
 
   <!--5. Start the Force Controller (currently wacoh) -->
-  <node name="ft_wacoh" pkg="ft_wacoh" type="ft_wacoh_pub" output="screen" respawn="true" >
-  </node>
+  <group unless="$(arg sim)">
+    <node name="ft_wacoh" pkg="ft_wacoh" type="ft_wacoh_pub" output="screen" respawn="true" >
+    </node>
+  </group>
 
   <!-- 6. Run the setpoint_publisher node -->
   <!-- Arg order can be as follows (read forceController_ReadMe.txt for more -->
@@ -28,10 +31,13 @@
   <!-- F alone:     "1|0|3 0 -7.5|0.2 -0.0001 0.1"                           -->
   <!-- Moom/For:    "2|1|0 -10 0|0.015 0.015 0.0015|0|3 0 -7.5|0.2 0.0001 0.1-->
   <!--node name="$(arg side)_set_point_publisher" pkg="force_controller" type="setPoint_pub" output="screen" respawn="true" args="1 0 0 0 0 0.00015 0.000 0.000" launch-prefix="$(arg gdb_arg)"-->    
-  <node name="$(arg side)_set_point_publisher" pkg="force_controller" type="setPoint_pub" output="screen" respawn="true" args="1 0 0 0 0 0.000 0.000 0.000" launch-prefix="$(arg gdb_arg)" >
+  <node name="$(arg side)_set_point_publisher" pkg="force_controller" type="setPoint_pub" output="screen" respawn="true" args="1 0 0 0 0 0.15 0.000 0.000" launch-prefix="$(arg gdb_arg)" >
   </node>
 
   <!-- 7. Run an rqt_plot viewer on the FT data -->
   <node name="wrench_plot" pkg="rqt_plot" type="rqt_plot" args="/wrench/filtered/wrench/force /wrench/filtered/wrench/torque" />
+
+  <!-- 8. Run an rqt_plot viewer on the Position data -->
+  <node name="pose_plot" pkg="rqt_plot" type="rqt_plot" args="/robot/limb/right/endpoint_state/pose/position/x" />
 
 </launch>
