@@ -77,7 +77,7 @@ namespace force_controller
     k_mi2=config.k_mi2;
 
     // change the flag
-    force_error_constantsFlag = true;
+    force_error_constants_flag = true;
 
   }
 
@@ -193,7 +193,7 @@ namespace force_controller
       
       // Dynamic Reconfigure
       dynamic_reconfigure_flag     =DYN_RECONF_F; 
-      force_error_constantsFlag    =false; 
+      force_error_constants_flag    =false; 
 
       // 1. Subscription object to get current joint angle positions, velocities, joint torques, and gravitational compensation torques.
       if(joints_sub_flag)
@@ -276,10 +276,13 @@ namespace force_controller
       /*** Filtering ***/
       // Inner Control Loop
       jntPos_Torque_InnerCtrl_Flag_=JNTPOS_TORQUE_CONTROLLER;
+      
+      // Inner Position Control 
+      positionControl_flag=POSITION_CONTROL_F;
 
-        // Wrench Filtering
-      initialFiltering       =1; // Filter wrench dat
-      wrenchFilteringFlag    =1;
+      // Wrench Filtering
+      initialFiltering       =1; // Flag for first iteration of filtering loop
+      wrenchFilteringFlag    =1; // Turn wrench filtering on or off. 
 
       // Gravity Compensation
       gravitationalOffsetFlag=0; // Enter loop considering gravity compensation
@@ -993,7 +996,7 @@ namespace force_controller
     gMi_ << k_mi0, k_mi1, k_mi2;
 
     // change the flag
-    force_error_constantsFlag = false;
+    force_error_constants_flag = false;
   }
 
     //*******************************************************************************************
@@ -1307,7 +1310,7 @@ namespace force_controller
             updateGains(sP_.subGains[0], sP_.subType);
 
           // Update from Dynamic Reconfigure GUI
-          if(force_error_constantsFlag)
+          if(force_error_constants_flag)
             updateGains();
 
           // Wait for the first joint angles readings. Otherwise cannot compute torques.
@@ -1352,7 +1355,7 @@ namespace force_controller
           // B2. 2 Controllers: call compound controllers
           if(sP_.num_ctrls > 1)
             {
-              // Take 2 angle updates in dqs. Project the subordinate update to the dominant ctrl's nullspace. 
+              // Take 2 angle updates in dqs vector. Project the subordinate update to the dominant ctrl's nullspace. 
               // Places new angle update+current angles in the sensor_msgs::JointState update_angles_, ready to pass to position controller
               if(!NullSpaceProjection(dqs, update_angles_))
                 {
@@ -1365,18 +1368,25 @@ namespace force_controller
           else
             update_angles_ = fill(dqs[0]);         
 
-          // C. Move to desired joint angle position through a positon or torque control loop
+          // C. Move to desired joint angle position 
+          // - Can publish updates directly through the force controller, or 
+          // - use an inner position control loop
+          // - use an inner torque control loop
+          // TODO: Use a swtich case here.
           if(jntPos_Torque_InnerCtrl_Flag_)   
             {
-              // Publish positions directly here
-              qgoal_.mode = qgoal_.POSITION_MODE;
-              qgoal_.names = joints_names_;
-              qgoal_.command.resize( 7 );
-              for(int i=0;i<7;i++)
-                qgoal_.command[i]=update_angles_.position[i];
-              joint_cmd_pub_.publish(qgoal_);        // NOV 8, TESTING IF WE DIRECTLY PUBLISH HOW ROBOT WILL RESPOND  
-              
-              // fin=position_controller(update_angles_,to_); // Position Controller
+              if(!positionControl_flag) 
+                {
+              // Publish positions directly herepdat
+                  qgoal_.mode = qgoal_.POSITION_MODE;
+                  qgoal_.names = joints_names_;
+                  qgoal_.command.resize( 7 );
+                  for(int i=0;i<7;i++)
+                    qgoal_.command[i]=update_angles_.position[i];
+                  joint_cmd_pub_.publish(qgoal_);        
+                }
+              else
+                fin=position_controller(update_angles_,to_); // Position Controller
             }        
 
           else 

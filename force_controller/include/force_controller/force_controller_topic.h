@@ -70,6 +70,7 @@ using std::string;
 
 // Inner Control Loop
 #define JNTPOS_TORQUE_CONTROLLER 1     // If true, set point is joint angles, otherwise joint torques.
+#define POSITION_CONTROL_F 1           // If true, do not directly publish force_controller output. Instead, use an inner position controller to handle the force updates.
 
 #define ERROR_DERIVATIVE_F 0           // Do you want to use the derivative term in the PID controller
 #define ERROR_INTEGRAL_F   0	         // Do you want to use the integral term in the PID controller
@@ -215,7 +216,7 @@ namespace force_controller
     ros::Publisher     filtered_wrench_pub_;             // Publish a filtered wrench number
     ros::Publisher     wrench_error_pub_;
 
-    ros::Publisher     endEff_gravOffset_pub_;   		// Publish the gravitational compensation offset at the end-effector
+    ros::Publisher     endEff_gravOffset_pub_;   		     // Publish the gravitational compensation offset at the end-effector
 
 	  ros::ServiceServer ctrl_server_;                     // Used to advertise the control basis service. 
 
@@ -239,34 +240,34 @@ namespace force_controller
     // int dynamic_reconfigure_flag;                       // Currently dynamic_reconfigure code sits outside the class in main, so this will be publc.
 
     // Kinematics model pointers.
-	Kinematics::Ptr kine_model_;
+    Kinematics::Ptr kine_model_;
 	 
     // Baxter arm strings
-	std::string side_, tip_name_;
-	std::vector<std::string> joints_names_;
+    std::string side_, tip_name_;
+    std::vector<std::string> joints_names_;
 
     // Force Controller PID Gains
-	Eigen::Vector3d gFp_, gMp_; // Proportional gains
-	Eigen::Vector3d gFv_, gMv_; // Derivative gains
-  Eigen::Vector3d gFi_, gMi_; // Integral gains
-	Eigen::VectorXd error_, error_t_1, derror_, ierror_;
+    Eigen::Vector3d gFp_, gMp_; // Proportional gains
+    Eigen::Vector3d gFv_, gMv_; // Derivative gains
+    Eigen::Vector3d gFi_, gMi_; // Integral gains
+    Eigen::VectorXd error_, error_t_1, derror_, ierror_;
 
-  double error_norm_;
+    double error_norm_;
 
-  Eigen::VectorXd                   cur_data_, cur_data_f_;
-  force_controller::setPoint        sP_;         	// Contains des values, gains for up to 2 cntrls.
-  std::vector<Eigen::VectorXd>      setPoint_; 	// Keep [0] for dominant and [1] for subordiante
+    Eigen::VectorXd                   cur_data_, cur_data_f_;
+    force_controller::setPoint        sP_;         	// Contains des values, gains for up to 2 cntrls.
+    std::vector<Eigen::VectorXd>      setPoint_; 	// Keep [0] for dominant and [1] for subordiante
 
-  std::deque<Eigen::VectorXd>       wrenchVec, wrenchVecF; 
-  std::vector<double>               j_t_1_, jv_t_1_, tm_t_1_, tg_t_1_, tgBase_; // Joints, velocity, torques, gravitational compensation torques. 
-  std::vector<std::vector<double> > joints_, velocity_, torque_, tg_;  
+    std::deque<Eigen::VectorXd>       wrenchVec, wrenchVecF; 
+    std::vector<double>               j_t_1_, jv_t_1_, tm_t_1_, tg_t_1_, tgBase_; // Joints, velocity, torques, gravitational compensation torques. 
+    std::vector<std::vector<double> > joints_, velocity_, torque_, tg_;  
 
-  // Position Controller Vars (used with controller::position_controller
-  sensor_msgs::JointState update_angles_;
-	baxter_core_msgs::JointCommand qgoal_; 	// Smooth filtered goal with alpha
-	std::vector<double> goal_, qd_, qe_;	  // Comes from position_controller/include/initialPose.h. 
-                                        	// joints_ was removed from here and instead we used the native 
-											                    // std::vector<std::vector<double> > joints_ always using index[0] instead.
+    // Position Controller Vars (used with controller::position_controller
+    sensor_msgs::JointState update_angles_;
+    baxter_core_msgs::JointCommand qgoal_; 	// Smooth filtered goal with alpha
+    std::vector<double> goal_, qd_, qe_;	  // Comes from position_controller/include/initialPose.h. 
+    // joints_ was removed from here and instead we used the native 
+    // std::vector<std::vector<double> > joints_ always using index[0] instead.
 
     // Position Controller Tolerance Parameters
 	  double tolerance_, max_error_, alpha_;    
@@ -282,7 +283,7 @@ namespace force_controller
     int derror_flag_;
     int ierror_flag_;
 
-    bool force_error_constantsFlag;
+    bool force_error_constants_flag;
 
     // Status Boolean Flags
 	  bool init_, exe_, jo_ready_;
@@ -293,6 +294,7 @@ namespace force_controller
     /*** Flags ***/
     // Inner Control Loop Flags
     int jntPos_Torque_InnerCtrl_Flag_;
+    int positionControl_flag;
 
     // Wrench Filtering Flags
     int wrenchFilteringFlag;  // in getWrenchEndpoint()
