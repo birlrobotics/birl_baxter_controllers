@@ -70,10 +70,10 @@ using std::string;
 
 // Inner Control Loop
 #define JNTPOS_TORQUE_CONTROLLER 1     // If true, set point is joint angles, otherwise joint torques.
-#define POSITION_CONTROL_F 1           // If true, do not directly publish force_controller output. Instead, use an inner position controller to handle the force updates.
+#define POSITION_CONTROL_F 0           // If true, do not directly publish force_controller output. Instead, use an inner position controller to handle the force updates.
 
 #define ERROR_DERIVATIVE_F 0           // Do you want to use the derivative term in the PID controller
-#define ERROR_INTEGRAL_F   0	         // Do you want to use the integral term in the PID controller
+#define ERROR_INTEGRAL_F   1	         // Do you want to use the integral term in the PID controller
 //----------------------------------------------------------------------------------------
 
 /*** Time  Rates ***/
@@ -246,14 +246,7 @@ namespace force_controller
     std::string side_, tip_name_;
     std::vector<std::string> joints_names_;
 
-    // Force Controller PID Gains
-    Eigen::Vector3d gFp_, gMp_; // Proportional gains
-    Eigen::Vector3d gFv_, gMv_; // Derivative gains
-    Eigen::Vector3d gFi_, gMi_; // Integral gains
-    Eigen::VectorXd error_, error_t_1, derror_, ierror_;
-
-    double error_norm_;
-
+    // Data Members
     Eigen::VectorXd                   cur_data_, cur_data_f_;
     force_controller::setPoint        sP_;         	// Contains des values, gains for up to 2 cntrls.
     std::vector<Eigen::VectorXd>      setPoint_; 	// Keep [0] for dominant and [1] for subordiante
@@ -275,15 +268,19 @@ namespace force_controller
     // Force Controller Tolerance Parameters
     double force_error_threshold_;
 
-    // Force Controller PID Terms
-    double k_fp0,k_fp1,k_fp2,k_mp0,k_mp1,k_mp2; 
-    double k_fv0,k_fv1,k_fv2,k_mv0,k_mv1,k_mv2;
-    double k_fi0,k_fi1,k_fi2,k_mi0,k_mi1,k_mi2;
+    // PID Gains Elements
+    double k_fp0,k_fi1,k_fd2; // Force P,I,D
+    double k_mp0,k_mi1,k_md2; // Moment P,I,D
 
-    int derror_flag_;
-    int ierror_flag_;
+    // PID Gains Vectors
+    Eigen::Vector3d gF_, gM_; // Force [P,I,D], Moment [P,I,D] -- notice the order of the elements. 
+    int ierror_flag_, derror_flag_;
 
+    // Error
+    Eigen::VectorXd error_, error_t_1, derror_, ierror_;
+    double error_norm_;
     bool force_error_constants_flag;
+
 
     // Status Boolean Flags
 	  bool init_, exe_, jo_ready_;
