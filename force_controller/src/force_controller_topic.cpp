@@ -17,64 +17,30 @@ namespace force_controller
   void controller::callback(force_error_constants::force_error_constantsConfig &config, uint32_t level)
   {
     // Print the updated values
-    ROS_INFO("Dynamic Reconfigure Proportional gains: %f %f %f %f %f %f\n"
-                                 "Derivative gains:   %f %f %f %f %f %f\n"
-                                 "Integral  gains:    %f %f %f %f %f %f",
+    ROS_INFO("Dynamic Reconfigure: Force PID Gains: %f %f %f, Moment PID Gains: %f %f %f\n",                                
              
-             // Proportional Gains
-             config.k_fp0,
-             config.k_fp1,
-             config.k_fp2,
+             // Force Gains
+             config.k_fp0, // Proportional 
+             config.k_fi1, // Derivative
+             config.k_fd2, // Integral
 
-             config.k_mp0,
-             config.k_mp1,
-             config.k_mp2,
+             // Moment Gains
+             config.k_mp0, // Proportional
+             config.k_mi1, // Derivative
+             config.k_md2  // Integral
              
-             // Derivative Gains
-             config.k_fv0,
-             config.k_fv1,
-             config.k_fv2,
-
-             config.k_mv0,
-             config.k_mv1,
-             config.k_mv2,
-
-             // Integral gains
-             config.k_fi0,
-             config.k_fi1,
-             config.k_fi2,
-
-             config.k_mi0,
-             config.k_mi1,
-             config.k_mi2
 );
   
-    // Save proportional gains  to the corresponding data members. 
-    k_fp0=config.k_fp0;
-    k_fp1=config.k_fp1;
-    k_fp2=config.k_fp2;
+    // Save proportional gains to the corresponding data members. 
+    // Force Gains
+    k_fp0=config.k_fp0; // P
+    k_fi1=config.k_fi1; // D
+    k_fd2=config.k_fd2; // I
 
-    k_mp0=config.k_mp0;
-    k_mp1=config.k_mp1;
-    k_mp2=config.k_mp2;
-
-    // Save derivative gains to the corresponding data members.
-    k_fv0=config.k_fv0;
-    k_fv1=config.k_fv1;
-    k_fv2=config.k_fv2;
-
-    k_mv0=config.k_mv0;
-    k_mv1=config.k_mv1;
-    k_mv2=config.k_mv2;
-
-    // Save integral gains to the corresponding data members.
-    k_fi0=config.k_fi0;
-    k_fi1=config.k_fi1;
-    k_fi2=config.k_fi2;
-
-    k_mi0=config.k_mi0;
-    k_mi1=config.k_mi1;
-    k_mi2=config.k_mi2;
+    // Moment Gains
+    k_mp0=config.k_mp0; // P
+    k_mi1=config.k_mi1; // D
+    k_md2=config.k_md2; // I
 
     // change the flag
     force_error_constants_flag = true;
@@ -131,26 +97,17 @@ namespace force_controller
 
       /********** PID Gains ******************/
       // Note that the derivative and integral gains are not yet set on dynamic reconfigure or launch file or command line.
-      /* double k_fp0=0.2,  k_fp1=0.0001,  k_fp2=0.1, k_mp0=0.015, k_mp1=0.0015, k_mp2=0.015; // Also set with dynamc_reconfigure */
-      k_fp0=0.02,  k_fp1=0.0000,  k_fp2=0.0, k_mp0=0.000, k_mp1=0.0000, k_mp2=0.000; 
-      k_fv0=0, k_fv1=0, k_fv2=0, k_mv0=0, k_mv1=0, k_mv2=0;
-      k_fi0=0, k_fi1=0, k_fi2=0, k_mi0=0, k_mi1=0, k_mi2=0;      
+      /* double k_fp0=0.2,  k_fi1=0.0001,  k_fd2=0.1, k_mp0=0.015, k_mi1=0.0015, k_md2=0.015; // Also set with dynamc_reconfigure */
+      k_fp0=0.02,  k_fi1=0.0000,  k_fd2=0.0, k_mp0=0.000, k_mi1=0.0000, k_md2=0.000; 
 
       // Proportional Gains
-      gFp_ << k_fp0, k_fp1, k_fp2; 
-      gMp_ << k_mp0, k_mp1, k_mp2; 
-
-      // Derivative Gains
-      gFv_ << k_fv0, k_fv1, k_fv2; 
-      gMv_ << k_mv0, k_mv1, k_mv2; 
-
-      // Integral gains
-      gFi_ << k_fi0, k_fi1, k_fi2;
-      gMi_ << k_mi0, k_mi1, k_mi2; 
+      gF_ << k_fp0, k_fi1, k_fd2; 
+      gM_ << k_mp0, k_mi1, k_md2; 
 
       // Other vectors (initialize their size and values)
       cur_data_   = Eigen::VectorXd::Zero(6);  cur_data_f_ = Eigen::VectorXd::Zero(6);
 
+      // Initialize all errors to zero
       error_      = Eigen::VectorXd::Zero(6);  error_t_1   = Eigen::VectorXd::Zero(6);
       derror_     = Eigen::VectorXd::Zero(6);
       ierror_     = Eigen::VectorXd::Zero(6); 
@@ -933,67 +890,26 @@ namespace force_controller
 
   //****************************************************************************************************
   // updateGains(...)
-  // Used to update proportional gains at run-time through the parameter server or through rqt_reconfigure.
-  // TODO: update derivative and integral gains
+  // Used to update pid gains:
+  // - offline through the parameter server 
+  // - online through rqt_reconfigure.
   //****************************************************************************************************  
-  void controller::updateGains(geometry_msgs::Vector3 pgain, std::string type)
+  void controller::updateGains(geometry_msgs::Vector3 pid, std::string type)
   {
     if(type == "force")
-      {
-        gFp_ = Eigen::Vector3d(pgain.x, pgain.y, pgain.z);
-        // gFv_ = Eigen::Vector3d(dgain[1].x, dgain[1].y, dgain[1].z);
-        // gFi_ = Eigen::Vector3d(igain[2].x, igain[2].y, igain[2].z);
-        if(gFp_.sum()==0) // If we cancel the pgains, do the same for the derivative and integral gains
-          {
-            for(int i=0;i<3;i++)
-              {
-                gFv_(i)=0.0;
-                gFi_(i)=0.0;
-              }
-          }
-      }
-
+      gF_ = Eigen::Vector3d(pid.x, pid.y, pid.z); // pid
     else if(type == "moment")
-      {
-        gMp_ = Eigen::Vector3d(pgain.x, pgain.y, pgain.z);
-        // gMv_ = Eigen::Vector3d(dgain[1].x, dgain[1].y, dgain[1].z);
-        // gMi_ = Eigen::Vector3d(igain[2].x, igain[2].y, igain[2].z);
-
-        if(gMp_.sum()==0) 
-          {
-            for(int i=0;i<3;i++)
-              {            
-                gMv_(i)=0.0;
-                gMi_(i)=0.0;
-              }
-          }
-      }
+      gM_ = Eigen::Vector3d(pid.x, pid.y, pid.z);
     else
       ROS_WARN("Could not recognize type of controller, using default gain value");
-
-    // Derivative Gains
-    gFv_ << k_fv0, k_fv1, k_fv2;
-    gMv_ << k_mv0, k_mv1, k_mv2;
-
-    // Integral Gains
-    gFi_ << k_fi0, k_fi1, k_fi2;
-    gMi_ << k_mi0, k_mi1, k_mi2;
   }
 
   // Update with rqt_reconfigure updated parameters
   void controller::updateGains() 
   {
     // Proportional Gains
-    gFp_ << k_fp0, k_fp1, k_fp2;
-    gMp_ << k_mp0, k_mp1, k_mp2;
-
-    // Derivative Gains
-    gFv_ << k_fv0, k_fv1, k_fv2;
-    gMv_ << k_mv0, k_mv1, k_mv2;
-
-    // Integral Gains
-    gFi_ << k_fi0, k_fi1, k_fi2;
-    gMi_ << k_mi0, k_mi1, k_mi2;
+    gF_ << k_fp0, k_fi1, k_fd2; // These elements are individually updated through the rqt_reconfigure client
+    gM_ << k_mp0, k_mi1, k_md2;
 
     // change the flag
     force_error_constants_flag = false;
@@ -1013,35 +929,36 @@ namespace force_controller
       int    offset = 0;
       if(type == "moment") offset = 3;
 
-      // Compute the error between cur and des  data, save in error_ private member
+      // Compute appropriate error between cur and des data for force and moment. Save in error_ private member
       error_ = Eigen::VectorXd::Zero(6);
       for(unsigned int i=0; i<3; i++)
-        error_(i+offset) = -1*(xd(i)-xt(i)); // -1 is to help us descend the gradient error. 
-        
-      /* Error Derivative
-         - Compute the derivative error using a finite difference approximation. 
-         - TODO: should try the symmetric difference quotient. (error+1-error_1)/2rate
-         - TODO: filter the derror signal. */
-      if(derror_flag_)        
-          for(unsigned int i=0; i<3; i++)     
-            derror_(i+offset) = (error_(i+offset) - error_t_1(i+offset))*fc_while_loop_rate_; 
-
-      // Calculate derror using the joint angle velocity difference
-      // else        
-      //     for(unsigned int i=0; i<3; i++)     
-      //       derror_(i+offset) = (velocity_[0][i+offset] - velocity_[1][i+offset])*fc_while_loop_rate_;      
-      
+        error_(i+offset) = -1*(xd(i)-xt(i)); // -1 is to help us descend the gradient error.                
 
       /* Error Integral */
       if(ierror_flag_)        
           for(unsigned int i=0; i<3; i++)     
             ierror_(i+offset) = (error_(i+offset) + ierror_(i+offset));                 
 
-      if(errorCtr_==1)
-        derror_=Eigen::VectorXd::Zero(6);
+      /* Error Derivative
+         - Compute the derivative error using a finite difference approximation. 
+         - TODO: should try the symmetric difference quotient. (error+1-error_1)/2rate
+         - TODO: filter the derror signal. */
+      if(derror_flag_)        
+        {          
+          if(errorCtr_==1)
+            derror_=Eigen::VectorXd::Zero(6);
+          else
+            for(unsigned int i=0; i<3; i++)     
+              derror_(i+offset) = (error_(i+offset) - error_t_1(i+offset))*fc_while_loop_rate_; 
       
-      // Save current error to error_t_1
-      error_t_1 = error_;
+          // Save current error to error_t_1
+          error_t_1 = error_;
+        
+          // Calculate derror using the joint angle velocity difference
+          // else        
+          //     for(unsigned int i=0; i<3; i++)     
+          //       derror_(i+offset) = (velocity_[0][i+offset] - velocity_[1][i+offset])*fc_while_loop_rate_;   
+        }
 
       // Also compute the norm. Useful to check if  error decreases over time. 
       mag = error_.norm();
@@ -1077,8 +994,8 @@ namespace force_controller
     // 2. Compute error x gain 
     if(type == "force")
       {
-        for(unsigned int i=0; i<3; i++)
-          ke(i) = gFp_(i)*error_(i) + gFv_(i)*derror_(i);
+        // PID formulation. If derror or integral error flags are zero, error will be zero and it will cancel out here.
+        ke = gF_(0)*error_ + gF_(1)*ierror_ + gF_(2)*derror_;
 
         // Publish the error
         if(wrench_error_pub_flag)
@@ -1093,7 +1010,7 @@ namespace force_controller
     else if(type == "moment")
       {
         for(unsigned int i=0; i<3; i++)
-          ke(i+3) = gMp_(i)*error_(i+3);
+          ke = gM_(0)*error_ + gM_(1)*ierror_ + gM_(2)*derror_;
       }
     else
       {
@@ -1127,35 +1044,31 @@ namespace force_controller
     
     //  
     Eigen::VectorXd dq  = Eigen::VectorXd::Zero(6);       // Proportional Response
-    Eigen::VectorXd ddq = Eigen::VectorXd::Zero(6);       // Derivative Response
     Eigen::VectorXd idq = Eigen::VectorXd::Zero(6);       // Integral Response
+    Eigen::VectorXd ddq = Eigen::VectorXd::Zero(6);       // Derivative Response
 
     Eigen::VectorXd dq_scaled  = Eigen::VectorXd::Zero(7); // Multiplied by the gain
-    Eigen::VectorXd ddq_scaled = Eigen::VectorXd::Zero(7); 
     Eigen::VectorXd idq_scaled = Eigen::VectorXd::Zero(7); 
-    
+    Eigen::VectorXd ddq_scaled = Eigen::VectorXd::Zero(7); 
 
     // 1. Get the 6x7 Jacobian for Baxter. 
     kine_model_->getJacobian(joints_[0], joints_names_, jacobian);
 
     // 2. Compute the delta angles=Jt*(kp*e + kd*de + ki*ie). 
     dq  = jacobian.transpose() * error_;
-
-    if(derror_flag_)
-      ddq = jacobian.transpose() * derror_;
-    if(ierror_flag_)
-      idq = jacobian.transpose() * ierror_;    
+    idq = jacobian.transpose() * ierror_;    
+    ddq = jacobian.transpose() * derror_;
 
     // 3. Compute error x product 
     if(type == "force")
       {
         // for(unsigned int i=0; i<3; i++)
-        dq_scaled = gFp_(0)*dq;// gain * outoput of product (7x1)
+        dq_scaled = gF_(0)*dq + gF_(1)*idq + gF_(2)*ddq; // gain * output of Jacobian product (7x1)
       }
     else if(type == "moment")
       {
-        for(unsigned int i=0; i<3; i++)
-          dq_scaled(i+3) = gMp_(0)*dq(i+3);
+        // for(unsigned int i=0; i<3; i++)
+        dq_scaled = gM_(0)*dq + gM_(1)*idq + gM_(2)*ddq; // gain * output of Jacobian product (7x1)
       }
     else
       {
@@ -1190,7 +1103,8 @@ namespace force_controller
     ROS_ERROR_STREAM("Error Norm: " << error_norm_);
 	
     // 3. Compute the product of the error and the jacobian to produce the delta joint angle update placed in dq.
-    if(!JacobianErrorProduct(type, dq)) 
+    //     if(!JacobianErrorProduct(type, dq)) 
+    if(!JacobianProduct(type, dq)) 
       {
         ROS_ERROR("Could not get Jacobian");
         return false;
@@ -1284,7 +1198,7 @@ namespace force_controller
           ROS_INFO("\n----------------------------Entering force controller----------------------------");
 
           // Local variables
-          bool fin= true;
+          bool finished= true;
           bool ok = false;
           std::vector<double> error, js;
           std::vector<Eigen::VectorXd> dqs;
@@ -1377,31 +1291,27 @@ namespace force_controller
             {
               if(!positionControl_flag) 
                 {
-              // Publish positions directly herepdat
+                  // Publish positions directly herepdat
                   qgoal_.mode = qgoal_.POSITION_MODE;
                   qgoal_.names = joints_names_;
                   qgoal_.command.resize( 7 );
-                  for(int i=0;i<7;i++)
-                    qgoal_.command[i]=update_angles_.position[i];
+
+                  // Copy the angles to the publisher object
+                  for(int i=0;i<7;i++) qgoal_.command[i]=update_angles_.position[i];
                   joint_cmd_pub_.publish(qgoal_);        
+                  finished = true;
                 }
               else
-                fin=position_controller(update_angles_,to_); // Position Controller
+                {
+                  finished=position_controller(update_angles_,to_); // Position Controller
+                  ROS_INFO_STREAM("isMoveFinish returns: " << finished );
+                }
             }        
 
           else 
             torque_controller(dqs[0],to_);              // Torque Controller        
 
-          // If position controller did not finish properly, exit, else continue the while loop.
-          // if(!fin)
-          //   break;
-
-          // // Set frequency to 
-          // loopRate.sleep();
-          // }  while(fin && error_norm_ > force_error_threshold_); // do while
-          ROS_INFO_STREAM("isMoveFinish returns: " << fin );
-
-          return fin;	
+          return finished;	
         }
       else
         return false;
@@ -1457,8 +1367,13 @@ namespace force_controller
   //********************************************************************************************************************************************************************
   bool controller::position_controller(sensor_msgs::JointState qd, ros::Time t0)
   {
+
+    // Set the position loop rate
+    ros::Rate pos_rate(pos_while_loop_rate_);
+
     // Copy qd into goal_ and clear member qd_ 
     goal_.clear();	qd_.clear();                     // goal_ is of type vector<doubles> 
+
     for(unsigned int i=0; i<qd.position.size(); i++)
       goal_.push_back(qd.position[i]);               // push back the reference angles. qd is JointStates and has a position[]
     qd_ = goal_;
@@ -1487,30 +1402,27 @@ namespace force_controller
     joint_cmd_pub_.publish(qgoal_);
     ros::Time begin       = ros::Time::now(); // Get time of publiscation
     
-    // Check if goal is reached by calling isMoveFinish
-    bool cont, isFinished = isMoveFinish(cont,begin); // cont indicates whether we should continue, isFinished indicates whether we are finished.
-    ROS_INFO_STREAM("isFinished="<<isFinished<<std::endl);
-    // Set the position loop rate
-    ros::Rate pos_rate(pos_while_loop_rate_);
+    // Check if we got to the goal
+    bool cont, isFinished = false;
+    isFinished = isMoveFinish(cont,begin); 
+    ROS_INFO_STREAM("Position Control Loop Finished? " << isFinished);
 
-    // If not finished, keep looping until finished. 
+    // If not finished, try until goal reached or timeout occurs.
     while(!isFinished && node_handle_.ok())
       {
         // Smoothing Filter: change goal to move more slowly or quickly
         for(unsigned int i=0; i<goal_.size(); i++)
           qgoal_.command[i] = ((1-alpha_)*goal_[i]) + (alpha_ * qgoal_.command[i]);	
      
-        // Print commanded joint angles again and their current time 
+        // Get new time
         ros::Time tnow = ros::Time::now();
-        ROS_INFO("isMoveFinish Commanded Joint Angle:\
-              \n------------------------------\n<%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f> at time: %f\n------------------------------",
-             qgoal_.command[0],qgoal_.command[1],qgoal_.command[2],
-             qgoal_.command[3],qgoal_.command[4],qgoal_.command[5],
-             qgoal_.command[6],(tnow-t0).toSec());
 
-        // Try to get closer and try again
+        // Move
         joint_cmd_pub_.publish(qgoal_);
-        isFinished = isMoveFinish(cont,begin);
+
+        // Check if we got to the goal
+        isFinished = isMoveFinish(cont,tnow);
+        ROS_INFO_STREAM("Position Control Loop Finished? " << isFinished);
         
         // Control the Position Loop Rate
         pos_rate.sleep();
@@ -1617,14 +1529,14 @@ namespace force_controller
 
     /***** Cases ****/
     // Timeout=all robot joints do not converge to desired position. Measured from the time the last joint command was published till now.
-    ros::Time tnow = ros::Time::now();
-    double cur_timeOut = (begin-tnow).toSec();
-    int maxCycles=timeOut_*fc_while_loop_rate_;
+    ros::Time tnow     = ros::Time::now();
+    double    cur_time = (tnow-begin).toSec();
+    int       maxCycles= timeOut_*fc_while_loop_rate_;
 
     // 1. Info printing case. Before timeout and still working towards the goal.
-    if( (keep + ok == joints_[0].size()) && (ok != joints_names_.size()) && ( cur_timeOut <= timeOut_ ))
+    if( (keep + ok == joints_[0].size()) && (ok != joints_names_.size()) && ( cur_time <= timeOut_ ))
       {
-        ROS_INFO("Position Controller: At time: %f, keep = %d, ok = %d", cur_timeOut, keep, ok);
+        ROS_INFO("Position Controller: At time: %f, keep = %d, ok = %d", cur_time, keep, ok);
         if(n_ % maxCycles == 0) ROS_WARN("Position Controller: Warning!! Max number of cycles reached in isMoveFinish().");
 
         cont = true;   // Continue the loop
@@ -1633,9 +1545,9 @@ namespace force_controller
 
     // 2. Timeout: either reach the best possible solution or obstructed by something. 
     //    else if( (keep <= 2) || ( ((tnow - to_).toSec()) > timeOut_ ) )
-    else if(  cur_timeOut > timeOut_ ) 
+    else if(  cur_time > timeOut_ ) 
       {
-        ROS_ERROR("Position Controller: Timed Out!! At time: %f, and number of cycles: %d", cur_timeOut, n_);
+        ROS_ERROR("Position Controller: Timed Out at time: %f", cur_time);
         cont = false;   // Could not get a result.        
         return false;    // Return a finish command
       }
