@@ -206,7 +206,7 @@ namespace force_controller
       if(wrench_sub_flag)
         {
           if(ft_wacoh_flag)
-            wrench_sub_ = root_handle_.subscribe<geometry_msgs::WrenchStamped>("/wrench/filtered", 1000, &controller::getWrenchEndpoint_wacoh, this); //wrench/biased is a topic with offset to zero ft sensor.
+            wrench_sub_ = root_handle_.subscribe<geometry_msgs::WrenchStamped>("/wrench/filtered/" + side_, 1000, &controller::getWrenchEndpoint_wacoh, this); //wrench/biased is a topic with offset to zero ft sensor.
           else
             wrench_sub_ = root_handle_.subscribe<baxter_core_msgs::EndpointState>("/robot/limb/" + side_ + "/endpoint_state", 1, &controller::getWrenchEndpoint, this);
           rosCommunicationCtr++;
