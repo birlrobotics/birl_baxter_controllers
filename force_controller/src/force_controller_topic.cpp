@@ -14,7 +14,7 @@ namespace force_controller
   // When the rqt_reconfigure gui is used and those parameters are changed, the config.param_name in this function will be updated. Then, these parameters need to be set to the private members of your code to record those changes. 
   //***********************************************************************************************************************************************
   //void callback(force_error_constants::force_error_constantsConfig &config, uint32_t level)
-  void controller::callback(force_error_constants::force_error_constantsConfig &config, uint32_t level)
+  void controller::callback(force_controller::force_error_constantsConfig &config, uint32_t level)
   {
     // Print the updated values
     ROS_INFO("Dynamic Reconfigure: Force PID Gains: %f %f %f, Moment PID Gains: %f %f %f\n",                                
@@ -163,7 +163,7 @@ namespace force_controller
       if(wrench_sub_flag)
         {
           if(ft_wacoh_flag)
-            wrench_sub_ = root_handle_.subscribe<geometry_msgs::WrenchStamped>("/wrench/filtered", 1000, &controller::getWrenchEndpoint_wacoh, this); //wrench/biased is a topic with offset to zero ft sensor.
+            wrench_sub_ = root_handle_.subscribe<geometry_msgs::WrenchStamped>("/wrench/filtered/" + side_, 1000, &controller::getWrenchEndpoint_wacoh, this); //wrench/biased is a topic with offset to zero ft sensor.
           else
             wrench_sub_ = root_handle_.subscribe<baxter_core_msgs::EndpointState>("/robot/limb/" + side_ + "/endpoint_state", 1, &controller::getWrenchEndpoint, this);
           rosCommunicationCtr++;
@@ -1565,47 +1565,47 @@ namespace force_controller
 
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "control_basis_controller");
+  ros::init(argc, argv, "force_controller");
 
   // Create a node namespace. Ie for service/publication: <node_name>/topic_name or for parameters: <name_name>/param_name 
   ros::NodeHandle node("~"); 
 
   // Instantiate the controller
-  force_controller::controller myControl(node);
+  force_controller::controller *myControl = new force_controller::controller(node); // todo destroy
 
   // Set up the Dynamic Reconfigure Server to update controller gains: force, moment both proportional and derivative.
-  if(myControl.dynamic_reconfigure_flag)
+  if(myControl->dynamic_reconfigure_flag)
     {
       // (i) Set up the dynamic reconfigure server
-      dynamic_reconfigure::Server<force_error_constants::force_error_constantsConfig> srv;
+      dynamic_reconfigure::Server<force_controller::force_error_constantsConfig> srv;
 
       // (ii) Create a callback object of type force_error_constantsConfig
-      dynamic_reconfigure::Server<force_error_constants::force_error_constantsConfig>::CallbackType f;
+      dynamic_reconfigure::Server<force_controller::force_error_constantsConfig>::CallbackType f;
 
       // (iii) Bind that object to the actual callback function
-      //f=boost::bind(&force_controller::callback, _1, _2); // Used to pass two params to a callback.
+      f=boost::bind(&force_controller::controller::callback, myControl, _1, _2); // Used to pass two params to a callback.
 
       // Bind a new function f2 with the force_controller::controller::callback.
       // The left side of the command, tells boost that the callback returns void and has two input parameters. 
       // It also needs the address of the this pointer of our class, and the indication that it has the two parameters follow the order _1, _2. 
-      boost::function<void (force_error_constants::force_error_constantsConfig &,int) > f2( boost::bind( &force_controller::controller::callback,&myControl, _1, _2 ) );
+      //boost::function<void (force_controller::force_error_constantsConfig &,int) > f2( boost::bind( &force_controller::controller::callback,&myControl, _1, _2 ) );
 
       // (iv) Set the callback to the service server. 
-      f=f2; // Copy the functor data f2 to our dynamic_reconfigure::Server callback type
+      //f=f2; // Copy the functor data f2 to our dynamic_reconfigure::Server callback type
       srv.setCallback(f);
 
       // Update the rosCommunicationCtr
-      myControl.rosCommunicationCtrUp();
+      myControl->rosCommunicationCtrUp();
     }
 
-  if(!myControl.start())
+  if(!myControl->start())
     {
       ROS_ERROR("Could not start controller, exiting");
       ros::shutdown();
       return 1;
     }
 
-  ros::Rate rate( myControl.get_fcLoopRate() );
+  ros::Rate rate( myControl->get_fcLoopRate() );
 
   /*** Different Communication Modes ***/
   while(ros::ok())
@@ -1613,12 +1613,12 @@ int main(int argc, char** argv)
 
       // 1. Non Blocking spin
       ros::spinOnce();
-      myControl.force_controller();
+      myControl->force_controller();
 
       // 2. Non-blocking AsyncSpinner
-      // ros::AsyncSpinner spinner(myControl.get_rosCommunicationCtr());
+      // ros::AsyncSpinner spinner(myControl->get_rosCommunicationCtr());
       // spinner.start();
-      // myControl.force_controller();
+      // myControl->force_controller();
       // spinner.stop();
 
       // 3. Blocking MultiThreadedSpinner
@@ -1629,7 +1629,7 @@ int main(int argc, char** argv)
       //   5. Dynamic Reconfigure (on)
       //   6. Advertice a service server
       //   7. published filtered wrench (if using Baxter's internal torques)
-      // ros::MultiThreadedSpinner spinner(myControl.get_rosCommunicationCtr()); // One spinner per ROS communication object: here we use it for 
+      // ros::MultiThreadedSpinner spinner(myControl->get_rosCommunicationCtr()); // One spinner per ROS communication object: here we use it for 
       // spinner.spin();
       // ros::waitForShutdown(); 
 

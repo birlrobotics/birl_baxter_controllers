@@ -13,6 +13,7 @@ class DynaClient():
         #pdb.set_trace() # debug
 
         # Client runs once at 10Hz and calls upate_configuration
+        rospy.wait_for_service("force_controller")
         client = dynamic_reconfigure.client.Client("force_error_constants", timeout=5, config_callback=self.callback)
 
         r = rospy.Rate(10)

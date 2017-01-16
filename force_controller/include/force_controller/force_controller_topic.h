@@ -135,7 +135,7 @@ namespace force_controller
     inline void   rosCommunicationCtrUp()   { rosCommunicationCtr++;      }
 
     /*** Dynamic Reconfigure Callback ***/
-    void callback(force_error_constants::force_error_constantsConfig &config, uint32_t level); 
+    void callback(force_controller::force_error_constantsConfig &config, uint32_t level); 
 
   private:
 
