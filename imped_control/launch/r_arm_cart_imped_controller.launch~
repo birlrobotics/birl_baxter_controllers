@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+    <!-- Load the impedance controller configuration from the YAML file to parameter server -->
+    <rosparam file="$(find imped_control)/config/baxter_imped_controller.yaml" command="load" />
+
+    <!-- Load the default controller -->
+    <node pkg="pr2_controller_manager" type="spawner" args="r_arm_cart_imped_controller" name="r_arm_cart_imped_controller_spawner" output="screen"/>
+
+    <!-- Load the default stopped controllers -->
+    <node pkg="pr2_controller_manager" type="unspawner" args="r_arm_controller"  name="r_arm_stopper"/>
+
+</launch>
